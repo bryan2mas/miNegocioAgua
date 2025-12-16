@@ -1,0 +1,45 @@
+// BACKUP of corrupted firebase.js
+
+```javascript
+// Thin wrapper re-exporting the clean firebase client implementation.
+// Keep this file so imports using `./firebase` continue to work.
+
+export { default } from './firebaseClient';
+export * from './firebaseClient';
+// Firebase initialization and helpers
+// IMPORTANT: Replace the config placeholders with your Firebase project's values.
+// You can find these in the Firebase console -> Project settings -> SDK setup
+
+import { initializeApp } from 'firebase/app';
+// Firebase initialization and helpers
+// IMPORTANT: Replace the config placeholders with your Firebase project's values.
+// You can find these in the Firebase console -> Project settings -> SDK setup
+
+import { initializeApp } from 'firebase/app';
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  doc,
+  setDoc,
+  getDocs,
+  // Thin wrapper: re-export the clean firebase client implementation
+  // This keeps `src/firebase.js` as the canonical import path while the
+  // implementation lives in `src/firebaseClient.js`.
+
+  export { default } from './firebaseClient';
+  export * from './firebaseClient';
+// Initialize Firebase app (safe to call multiple times in dev due to checking by SDK)
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// Helper: log an audit entry to collection `audits`
+export async function logAudit(entry) {
+  try {
+    // Thin wrapper re-exporting the clean firebase client implementation.
+    // Keep this file so imports using `./firebase` continue to work.
+
+    export { default } from './firebaseClient';
+    export * from './firebaseClient';
+    const r = await addDoc(auditsRef, payload);
+```
