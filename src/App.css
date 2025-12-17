@@ -165,6 +165,7 @@
 
 .mobile-menu-button {
   display: none;
+  /* Changed: Only showing if needed via logic, but we will hide it fully in mobile query if bottom nav is present */
   position: fixed;
   bottom: 2rem;
   right: 2rem;
@@ -212,8 +213,85 @@
 
 @media (max-width: 768px) {
   .mobile-menu-button {
+    display: none !important;
+    /* Force hide in mobile as we use bottom nav */
+  }
+
+  .sidebar {
+    display: none !important;
+    /* Force hide sidebar in mobile */
+  }
+
+  .main-content {
+    padding-bottom: 5rem;
+    /* Space for bottom nav */
+  }
+}
+
+/* Bottom Navigation */
+.bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  border-top: 1px solid #e2e8f0;
+  padding: 0.5rem;
+  z-index: 100;
+  box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
+  justify-content: space-around;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .bottom-nav {
     display: flex;
   }
+}
+
+.bottom-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 0.5rem;
+  transition: all 0.25s ease;
+  position: relative;
+  flex: 1;
+}
+
+.bottom-nav-item.active {
+  color: #0284c7;
+  font-weight: bold;
+}
+
+.bottom-nav-item:active {
+  transform: scale(0.95);
+}
+
+.bottom-nav-badge {
+  position: absolute;
+  top: 0;
+  right: 25%;
+  background-color: #ef4444;
+  color: white;
+  font-size: 0.65rem;
+  font-weight: bold;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 2px solid white;
 }
 
 .header-section {
@@ -772,13 +850,54 @@
   .main-content {
     flex: 1;
     padding: 1rem;
+    padding-bottom: 6rem;
+    /* Prevent bottom nav overlap */
   }
 }
 
 @media (max-width: 480px) {
   .products-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    /* Changed: 2 columns for mobile */
+    gap: 1rem;
   }
+
+  /* Make cards more compact for 2-col layout */
+  .product-card {
+    padding: 1rem;
+    border-radius: 1rem;
+  }
+
+  .product-icon {
+    width: 3rem;
+    height: 3rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .product-name {
+    font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .product-price {
+    font-size: 1.25rem;
+    margin-bottom: 0.25rem;
+  }
+
+  /* Larger Add Button for easier touch */
+  .add-button {
+    width: 3.5rem;
+    height: 3.5rem;
+    opacity: 1;
+    /* Always visible on mobile */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    top: -0.5rem;
+    /* slight offset to break boundary or position better */
+    right: -0.5rem;
+  }
+
+  /* Adjust icon size inside add button if possible, though strict size is prop-based in JSX. 
+     We can just thrive on the larger button area. */
 
   .modal-content {
     width: 95%;
@@ -825,5 +944,54 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Debt Card - Responsive Layout */
+.debt-card {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0;
+}
+
+.debt-card-content {
+  flex: 1;
+}
+
+.debt-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.debt-card-total {
+  text-align: right;
+}
+
+@media (max-width: 640px) {
+  .debt-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+    padding: 1.25rem;
+  }
+
+  .debt-card-actions {
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 1rem;
+    margin-top: 0.5rem;
+    gap: 0;
+  }
+
+  .debt-card-total {
+    text-align: left;
+    display: flex;
+    flex-direction: column;
   }
 }

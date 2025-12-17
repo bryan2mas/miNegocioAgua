@@ -2,7 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 import ProductModal from './components/ProductModal';
 import PasswordModal from './components/PasswordModal';
-import ToastContainer, { notifyToast } from './components/Toast';
+import { notifyToast } from './components/Toast';
+import { Toaster, toast } from 'sonner';
+import RefillToast from './components/RefillToast';
 import { logAudit, saveVenta, saveProducto, deleteVenta, deleteProducto, fetchProductos, fetchVentas, fetchStock, saveStock } from './firebase';
 import {
   ShoppingCart,
@@ -118,20 +120,35 @@ const WaterRefillSystem = () => {
     return () => { mounted = false; };
   }, []);
 
-  const recargarTanque = async () => {
-    const entrada = prompt('Litros a agregar al tanque (ej. 1000)');
-    if (!entrada) return;
-    const add = Number(entrada);
-    if (isNaN(add) || add <= 0) { alert('Ingrese un número válido mayor a 0'); return; }
-    const nuevo = Math.max(0, (Number(stockLitros) || 0) + add);
-    setStockLitros(nuevo);
-    saveStock({ liters: nuevo }).then(() => {
-      notifyToast(`Tanque recargado +${add} L (total ${nuevo} L)`, 'info');
-      logAudit({ action: 'stock_recharged', user: adminUsuario, amount: add, when: new Date().toISOString() });
-    }).catch(err => {
-      console.error('saveStock failed', err);
-      notifyToast('Error al guardar stock', 'error');
-    });
+  const recargarTanque = () => {
+    toast.custom(
+      (t) => (
+        <RefillToast
+          t={t}
+          currentStock={stockLitros}
+          onConfirm={(amount) => {
+            const add = Number(amount);
+            const nuevo = Math.max(0, (Number(stockLitros) || 0) + add);
+            setStockLitros(nuevo);
+            saveStock({ liters: nuevo })
+              .then(() => {
+                notifyToast(`Tanque recargado +${add} L (total ${nuevo} L)`, 'info');
+                logAudit({
+                  action: 'stock_recharged',
+                  user: adminUsuario,
+                  amount: add,
+                  when: new Date().toISOString(),
+                });
+              })
+              .catch((err) => {
+                console.error('saveStock failed', err);
+                notifyToast('Error al guardar stock', 'error');
+              });
+          }}
+        />
+      ),
+      { duration: Infinity, position: 'top-center' }
+    );
   };
 
   const getConsumoFromNombre = (nombre) => {
@@ -345,20 +362,19 @@ const WaterRefillSystem = () => {
 
     if (litrosRequeridos > (Number(stockLitros) || 0)) {
       notifyToast(`Stock insuficiente: faltan ${litrosRequeridos - (Number(stockLitros) || 0)} L`, 'error');
-      alert(`Stock insuficiente. Faltan ${litrosRequeridos - (Number(stockLitros) || 0)} litros.`);
       return;
     }
 
     if (metodoPagoSeleccionado === METODOS_PAGO.CREDITO) {
       if (!clienteCredito.trim()) {
-        alert("Por favor ingrese el nombre del cliente para el crédito.");
+        notifyToast("Por favor ingrese el nombre del cliente para el crédito.", 'warning');
         return;
       }
       setDeudas([...deudas, { ...nuevaVenta, estado: 'pendiente', abonos: 0 }]);
-      alert(`Crédito registrado para ${clienteCredito}`);
+      notifyToast(`Crédito registrado para ${clienteCredito}`, 'success');
     } else {
       if (metodoPagoSeleccionado === METODOS_PAGO.PAGO_MOVIL && !referenciaPago.trim()) {
-        alert("Por favor ingrese la referencia del pago móvil.");
+        notifyToast("Por favor ingrese la referencia del pago móvil.", 'warning');
         return;
       }
       setVentas([...ventas, nuevaVenta]);
@@ -376,7 +392,7 @@ const WaterRefillSystem = () => {
         logAudit({ action: 'stock_decrement', user: adminUsuario, amount: litrosRequeridos, when: new Date().toISOString() });
       }).catch(err => console.warn('saveStock failed', err));
 
-      alert("Venta procesada con éxito!");
+      notifyToast("Venta procesada con éxito!", 'success');
     }
 
     setCarrito([]);
@@ -400,7 +416,7 @@ const WaterRefillSystem = () => {
     if (!deudaSeleccionada) return;
 
     if (metodoSaldarSeleccionado === METODOS_PAGO_DEUDA.PAGO_MOVIL && !referenciaSaldar.trim()) {
-      alert("Por favor ingrese la referencia del pago.");
+      notifyToast("Por favor ingrese la referencia del pago.", 'warning');
       return;
     }
 
@@ -418,7 +434,7 @@ const WaterRefillSystem = () => {
 
     setModalSaldarAbierto(false);
     setDeudaSeleccionada(null);
-    alert("Deuda saldada correctamente.");
+    notifyToast("Deuda saldada correctamente.", 'success');
     // persist saldada venta
     saveVenta(ventaSaldada).then(() => {
       notifyToast('Venta (saldada) guardada en Firestore', 'info');
@@ -470,10 +486,10 @@ const WaterRefillSystem = () => {
 
   const renderProductos = () => (
     <div style={{ height: '100%', overflowY: 'auto' }}>
-      <div className="header-section">
+      {/* <div className="header-section">
         <h2>Catálogo de Productos</h2>
         <p>Seleccione los productos para añadir al pedido</p>
-      </div>
+      </div> */}
 
 
 
@@ -863,8 +879,8 @@ const WaterRefillSystem = () => {
             </div>
           ) : (
             deudasFiltradas.map(deuda => (
-              <div key={deuda.id} className="card" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: 0 }}>
-                <div style={{ flex: 1 }}>
+              <div key={deuda.id} className="card debt-card">
+                <div className="debt-card-content">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
                     <span style={{ fontWeight: 'bold', fontSize: '1.125rem', color: '#0f172a' }}>{deuda.cliente}</span>
                     <span style={{ fontSize: '0.75rem', background: '#fee2e2', color: '#dc2626', padding: '0.125rem 0.5rem', borderRadius: '9999px', fontWeight: '500' }}>Pendiente</span>
@@ -876,8 +892,8 @@ const WaterRefillSystem = () => {
                   </p>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                  <div style={{ textAlign: 'right' }}>
+                <div className="debt-card-actions">
+                  <div className="debt-card-total">
                     <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: 0 }}>Total Deuda</p>
                     <p style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#dc2626', margin: 0 }}>${deuda.total.toFixed(2)}</p>
                   </div>
@@ -1099,7 +1115,7 @@ const WaterRefillSystem = () => {
       <main className="main-content">
         {vistaActual === 'productos' && (
           <div>
-            <div className="stock-indicator" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div className="stock-indicator" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', }}>
               <div>
                 <strong>Tanque (litros):</strong> {stockLitros} L
               </div>
@@ -1115,26 +1131,49 @@ const WaterRefillSystem = () => {
         {vistaActual === 'reportes' && renderReportes()}
       </main>
 
-      {/* Botón Hamburguesa para Mobile */}
-      <button
-        className="mobile-menu-button"
-        onClick={() => setSidebarAbierto(!sidebarAbierto)}
-        title={sidebarAbierto ? 'Cerrar menú' : 'Abrir menú'}
-      >
-        {sidebarAbierto ? <X size={24} /> : <Store size={24} />}
-        {!sidebarAbierto && cantidadItemsCarrito > 0 && (
-          <span className="mobile-menu-badge">
-            {cantidadItemsCarrito}
-          </span>
-        )}
-      </button>
+      {/* Bottom Navigation for Mobile */}
+      <nav className="bottom-nav">
+        <button
+          onClick={() => setVistaActual('productos')}
+          className={`bottom-nav-item ${vistaActual === 'productos' ? 'active' : ''}`}
+        >
+          <Store size={24} />
+          <span>Productos</span>
+        </button>
+        <button
+          onClick={() => setVistaActual('carrito')}
+          className={`bottom-nav-item ${vistaActual === 'carrito' ? 'active' : ''}`}
+        >
+          <ShoppingCart size={24} />
+          <span>Carrito</span>
+          {cantidadItemsCarrito > 0 && (
+            <span className="bottom-nav-badge">
+              {cantidadItemsCarrito}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setVistaActual('deudas')}
+          className={`bottom-nav-item ${vistaActual === 'deudas' ? 'active' : ''}`}
+        >
+          <Users size={24} />
+          <span>Deudas</span>
+        </button>
+        <button
+          onClick={() => setVistaActual('reportes')}
+          className={`bottom-nav-item ${vistaActual === 'reportes' ? 'active' : ''}`}
+        >
+          <FileText size={24} />
+          <span>Cierre</span>
+        </button>
+      </nav>
 
       {/* Modales */}
       {modalPagoAbierto && renderModalPagoVenta()}
       {modalSaldarAbierto && renderModalSaldarDeuda()}
       <ProductModal open={nuevoProductoModalOpen} onClose={cerrarModalNuevoProducto} onConfirm={handleProductModalConfirm} />
       <PasswordModal open={passwordModalOpen} onClose={closePasswordModal} onConfirm={handlePasswordConfirm} title="Confirmar eliminación" placeholder="Ingrese contraseña" info={`La venta podrá deshacerse durante ${DELETE_UNDO_MS / 1000} segundos.`} />
-      <ToastContainer />
+      <Toaster richColors position="top-center" expand={true} />
     </div>
   );
 };
