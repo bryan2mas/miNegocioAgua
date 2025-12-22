@@ -1192,7 +1192,7 @@ const WaterRefillSystem = () => {
       <main className="main-content">
         {vistaActual === 'productos' && (
           <div>
-            <div className="stock-indicator-dashboard" style={{ padding: '0 1rem', marginBottom: '1rem' }}>
+            <div className="stock-indicator-dashboard" style={{ padding: '0 1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                 <span style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#64748b' }}>Nivel del Tanque</span>
                 <span style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#0f172a' }}>
