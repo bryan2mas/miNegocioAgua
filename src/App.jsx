@@ -21,7 +21,8 @@ import {
   CheckCircle,
   Smartphone,
   Banknote,
-  Store
+  Store,
+  Package
 } from 'lucide-react';
 
 // --- Datos Iniciales y Configuración ---
@@ -46,6 +47,8 @@ const METODOS_PAGO_DEUDA = {
   EFECTIVO: 'Efectivo',
   PAGO_MOVIL: 'Pago Móvil'
 };
+
+const MAX_TANQUE_LITROS = 5000;
 
 const WaterRefillSystem = () => {
   // --- Estados de la Aplicación ---
@@ -1015,6 +1018,80 @@ const WaterRefillSystem = () => {
   };
 
   // cleanup timers on unmount
+  const renderInventario = () => {
+    const porcentaje = Math.min(100, Math.max(0, (stockLitros / MAX_TANQUE_LITROS) * 100));
+
+    return (
+      <div style={{ padding: '1.5rem', maxWidth: '800px', margin: '0 auto' }}>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#0f172a', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Package size={28} /> Gestión de Inventario
+        </h2>
+
+        <div className="card-dashboard" style={{ padding: '2rem', textAlign: 'center', background: 'white', borderRadius: '1rem', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' }}>
+          <h3 style={{ fontSize: '1.125rem', color: '#64748b', marginBottom: '1.5rem' }}>Nivel Actual del Tanque</h3>
+
+          <div style={{ position: 'relative', width: '200px', height: '200px', margin: '0 auto 2rem auto' }}>
+            {/* Circular Indicator Placeholder - Using CSS for simplicity */}
+            <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+              <path
+                d="M18 2.0845
+                      a 15.9155 15.9155 0 0 1 0 31.831
+                      a 15.9155 15.9155 0 0 1 0 -31.831"
+                fill="none"
+                stroke="#e2e8f0"
+                strokeWidth="4"
+              />
+              <path
+                d="M18 2.0845
+                      a 15.9155 15.9155 0 0 1 0 31.831
+                      a 15.9155 15.9155 0 0 1 0 -31.831"
+                fill="none"
+                stroke={stockLitros < 1000 ? '#ef4444' : '#3b82f6'}
+                strokeWidth="4"
+                strokeDasharray={`${porcentaje}, 100`}
+                style={{ transition: 'stroke-dasharray 0.5s ease' }}
+              />
+            </svg>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: '2.5rem', fontWeight: '900', color: '#0f172a' }}>{Math.round(porcentaje)}%</span>
+              <span style={{ fontSize: '1rem', color: '#64748b' }}>{stockLitros} L</span>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '2rem' }}>
+            <p style={{ color: '#64748b', marginBottom: '0.5rem' }}>Capacidad Total: <strong>{MAX_TANQUE_LITROS} Litros</strong></p>
+            {stockLitros < 1000 && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', background: '#fee2e2', color: '#dc2626', borderRadius: 'full', fontWeight: 'bold', fontSize: '0.875rem' }}>
+                ⚠️ Nivel Crítico de Agua
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={recargarTanque}
+            style={{
+              background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+              color: 'white',
+              border: 'none',
+              padding: '0.75rem 2rem',
+              borderRadius: '0.5rem',
+              fontWeight: 'bold',
+              fontSize: '1rem',
+              cursor: 'pointer',
+              boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.5)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}
+          >
+            <Droplets size={20} /> Recargar Tanque
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // cleanup timers on unmount
   useEffect(() => {
     return () => {
       Object.values(deleteTimers.current).forEach(t => { if (t) clearTimeout(t); });
@@ -1043,6 +1120,7 @@ const WaterRefillSystem = () => {
           </div>
 
           <div className="sidebar-nav">
+
             <div className="sidebar-section">Ventas</div>
             <button
               onClick={() => {
@@ -1071,6 +1149,19 @@ const WaterRefillSystem = () => {
               )}
             </button>
 
+            <div style={{ marginTop: '0.5rem', marginBottom: '0.5rem', borderTop: '1px solid rgba(255, 255, 255, 0.1)', marginLeft: '0.5rem', marginRight: '0.5rem' }}></div>
+
+            <div className="sidebar-section">Inventario</div>
+            <button
+              onClick={() => {
+                setVistaActual('inventario');
+                setSidebarAbierto(false);
+              }}
+              className={`sidebar-button ${vistaActual === 'inventario' ? 'active' : ''}`}
+            >
+              <Package size={20} />
+              <span>Inventario</span>
+            </button>
             <div style={{ marginTop: '0.5rem', marginBottom: '0.5rem', borderTop: '1px solid rgba(255, 255, 255, 0.1)', marginLeft: '0.5rem', marginRight: '0.5rem' }}></div>
 
             <div className="sidebar-section">Administración</div>
@@ -1115,17 +1206,28 @@ const WaterRefillSystem = () => {
       <main className="main-content">
         {vistaActual === 'productos' && (
           <div>
-            <div className="stock-indicator" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', }}>
-              <div>
-                <strong>Tanque (litros):</strong> {stockLitros} L
+            <div className="stock-indicator-dashboard" style={{ padding: '0 1rem', marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#64748b' }}>Nivel del Tanque</span>
+                <span style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#0f172a' }}>
+                  {Math.round((stockLitros / MAX_TANQUE_LITROS) * 100)}% ({stockLitros} L)
+                </span>
               </div>
-              <div>
-                <button onClick={recargarTanque}>Recargar Tanque</button>
+              <div style={{ width: '100%', height: '0.75rem', background: '#e2e8f0', borderRadius: '9999px', overflow: 'hidden' }}>
+                <div
+                  style={{
+                    width: `${Math.min(100, Math.max(0, (stockLitros / MAX_TANQUE_LITROS) * 100))}%`,
+                    height: '100%',
+                    background: stockLitros < 1000 ? '#ef4444' : '#3b82f6',
+                    transition: 'width 0.5s ease'
+                  }}
+                />
               </div>
             </div>
             {renderProductos()}
           </div>
         )}
+        {vistaActual === 'inventario' && renderInventario()}
         {vistaActual === 'carrito' && renderCarrito()}
         {vistaActual === 'deudas' && renderDeudas()}
         {vistaActual === 'reportes' && renderReportes()}
@@ -1138,7 +1240,14 @@ const WaterRefillSystem = () => {
           className={`bottom-nav-item ${vistaActual === 'productos' ? 'active' : ''}`}
         >
           <Store size={24} />
-          <span>Productos</span>
+          <span>Tienda</span>
+        </button>
+        <button
+          onClick={() => setVistaActual('inventario')}
+          className={`bottom-nav-item ${vistaActual === 'inventario' ? 'active' : ''}`}
+        >
+          <Package size={24} />
+          <span>Stock</span>
         </button>
         <button
           onClick={() => setVistaActual('carrito')}
