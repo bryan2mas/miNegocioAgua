@@ -242,6 +242,8 @@
   box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
   justify-content: space-around;
   align-items: center;
+  border-top-left-radius: 1rem;
+  border-top-right-radius: 1rem;
 }
 
 @media (max-width: 768px) {
@@ -459,6 +461,9 @@
 @media (max-width: 768px) {
   .combined-layout {
     flex-direction: column;
+    height: auto !important;
+    padding-bottom: 6rem;
+    gap: 1.5rem;
   }
 
   .combined-cart {

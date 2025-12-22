@@ -5,7 +5,7 @@ import PasswordModal from './components/PasswordModal';
 import { notifyToast } from './components/Toast';
 import { Toaster, toast } from 'sonner';
 import RefillToast from './components/RefillToast';
-import { logAudit, saveVenta, saveProducto, deleteVenta, deleteProducto, fetchProductos, fetchVentas, fetchStock, saveStock } from './firebase';
+import { logAudit, saveVenta, saveProducto, deleteVenta, deleteProducto, fetchProductos, fetchVentas, fetchStock, saveStock, saveGasto, fetchGastos, deleteGasto } from './firebase';
 import {
   ShoppingCart,
   Droplets,
@@ -22,7 +22,11 @@ import {
   Smartphone,
   Banknote,
   Store,
-  Package
+  Package,
+  Briefcase,
+  Wallet,
+  Truck,
+  TrendingDown
 } from 'lucide-react';
 
 // --- Datos Iniciales y Configuración ---
@@ -57,6 +61,7 @@ const WaterRefillSystem = () => {
   const [productos, setProductos] = useState(PRODUCTOS_INICIALES);
   const [stockLitros, setStockLitros] = useState(5000);
   const [ventas, setVentas] = useState([]);
+  const [gastos, setGastos] = useState([]);
   const [deudas, setDeudas] = useState([]);
   const [montoDelivery, setMontoDelivery] = useState(0);
 
@@ -77,6 +82,15 @@ const WaterRefillSystem = () => {
   const [sidebarAbierto, setSidebarAbierto] = useState(false);
   // Estados para Nuevo Producto (modal)
   const [nuevoProductoModalOpen, setNuevoProductoModalOpen] = useState(false);
+
+  // Estados para Admin Tabs
+  const [adminTab, setAdminTab] = useState('reportes'); // reportes, deudas, gastos
+
+  // Estados para Gastos
+  const [gastoDescripcion, setGastoDescripcion] = useState('');
+  const [gastoMonto, setGastoMonto] = useState('');
+  const [gastoCategoria, setGastoCategoria] = useState('Proveedor');
+  const [gastoReferencia, setGastoReferencia] = useState('');
 
   // Admin usuario para auditoría
   const [adminUsuario] = useState('Admin');
@@ -108,6 +122,13 @@ const WaterRefillSystem = () => {
       if (items && items.length) setVentas(items);
     }).catch(err => {
       console.warn('fetchVentas failed', err);
+    });
+
+    fetchGastos().then(items => {
+      if (!mounted) return;
+      if (items && items.length) setGastos(items);
+    }).catch(err => {
+      console.warn('fetchGastos failed', err);
     });
 
 
@@ -901,15 +922,206 @@ const WaterRefillSystem = () => {
     );
   };
 
+  const renderGastos = () => {
+    const categorias = ['Proveedor', 'Servicios', 'Mantenimiento', 'Personal', 'Otros'];
+
+    const agregarGasto = () => {
+      if (!gastoDescripcion.trim() || !gastoMonto || Number(gastoMonto) <= 0) {
+        notifyToast('Ingrese descripción y monto válido', 'error');
+        return;
+      }
+
+      const nuevoGasto = {
+        id: Date.now(),
+        fecha: new Date().toISOString(),
+        descripcion: gastoDescripcion.trim(),
+        monto: Number(gastoMonto),
+        categoria: gastoCategoria,
+        referencia: gastoReferencia.trim()
+      };
+
+      setGastos([nuevoGasto, ...gastos]);
+      saveGasto(nuevoGasto).then(() => {
+        notifyToast('Gasto registrado exitosamente', 'success');
+      }).catch(err => {
+        console.error('saveGasto failed', err);
+        notifyToast('Error al guardar el gasto', 'error');
+      });
+
+      // Clear form
+      setGastoDescripcion('');
+      setGastoMonto('');
+      setGastoReferencia('');
+    };
+
+    const handleEliminarGasto = (id) => {
+      if (!confirm('¿Eliminar este gasto?')) return;
+      setGastos(gastos.filter(g => g.id !== id));
+      deleteGasto(id).catch(err => console.error('deleteGasto error', err));
+      notifyToast('Gasto eliminado', 'info');
+    };
+
+    const totalGastosHoy = gastos
+      .filter(g => new Date(g.fecha).toDateString() === new Date().toDateString())
+      .reduce((sum, g) => sum + g.monto, 0);
+
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+        <div style={{ padding: '1.5rem', borderBottom: '1px solid #e2e8f0', background: 'white' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+            <Wallet size={24} className="text-blue-600" /> Gastos y Proveedores
+          </h2>
+          <p style={{ color: '#64748b', fontSize: '0.875rem', marginTop: '0.25rem' }}>Registro de salidas de dinero</p>
+        </div>
+
+        <div className="combined-layout" style={{ background: '#f8fafc', padding: '1rem', gap: '1rem' }}>
+          {/* Formulario de Registro */}
+          <div className="card" style={{ padding: '1.5rem', height: 'fit-content' }}>
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '1rem', color: '#0f172a' }}>Registrar Gasto</h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Descripción / Proveedor</label>
+                <input
+                  type="text"
+                  value={gastoDescripcion}
+                  onChange={(e) => setGastoDescripcion(e.target.value)}
+                  placeholder="Ej. Compra de tapas, Pago de luz..."
+                  className="modal-input"
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Monto ($)</label>
+                  <input
+                    type="number"
+                    value={gastoMonto}
+                    onChange={(e) => setGastoMonto(e.target.value)}
+                    placeholder="0.00"
+                    className="modal-input"
+                    style={{ width: '100%' }}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Categoría</label>
+                  <select
+                    value={gastoCategoria}
+                    onChange={(e) => setGastoCategoria(e.target.value)}
+                    className="modal-input"
+                    style={{ width: '100%' }}
+                  >
+                    {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Referencia (Opcional)</label>
+                <input
+                  type="text"
+                  value={gastoReferencia}
+                  onChange={(e) => setGastoReferencia(e.target.value)}
+                  placeholder="Nro Factura / Ref Pago"
+                  className="modal-input"
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <button
+                onClick={agregarGasto}
+                className="btn-primary"
+                style={{ justifyContent: 'center', marginTop: '0.5rem' }}
+              >
+                Registrar Gasto
+              </button>
+            </div>
+          </div>
+
+          {/* Listado y Resumen */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1, overflow: 'hidden' }}>
+            {/* Card Resumen Hoy */}
+            <div className="card" style={{ padding: '1rem', background: 'linear-gradient(135deg, #fef2f2 0%, #fff 100%)', borderColor: '#fecaca' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <p className="text-xs font-bold text-red-500 uppercase tracking-wider">Total Gastos (Hoy)</p>
+                  <p className="text-2xl font-black text-red-700">${totalGastosHoy.toFixed(2)}</p>
+                </div>
+                <TrendingDown size={32} className="text-red-300" />
+              </div>
+            </div>
+
+            {/* Lista Scrollable */}
+            <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div style={{ padding: '1rem', borderBottom: '1px solid #e2e8f0' }}>
+                <h3 style={{ fontSize: '1rem', fontWeight: 'bold' }}>Historial Reciente</h3>
+              </div>
+              <div style={{ overflowY: 'auto', flex: 1 }}>
+                {gastos.length === 0 ? (
+                  <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>
+                    No hay gastos registrados
+                  </div>
+                ) : (
+                  <table style={{ width: '100%', fontSize: '0.875rem', textAlign: 'left' }}>
+                    <thead style={{ background: '#f8fafc', color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase' }}>
+                      <tr>
+                        <th style={{ padding: '0.75rem 1rem' }}>Fecha</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>Desc.</th>
+                        <th style={{ padding: '0.75rem 1rem' }}>Cat.</th>
+                        <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Monto</th>
+                        <th style={{ padding: '0.75rem 1rem', width: '40px' }}></th>
+                      </tr>
+                    </thead>
+                    <tbody style={{ divideY: '1px solid #e2e8f0' }}>
+                      {gastos.map(g => (
+                        <tr key={g.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '0.75rem 1rem', color: '#64748b' }}>
+                            {new Date(g.fecha).toLocaleDateString()}
+                          </td>
+                          <td style={{ padding: '0.75rem 1rem', fontWeight: '500' }}>
+                            {g.descripcion}
+                            {g.referencia && <span className="block text-xs text-gray-400">Ref: {g.referencia}</span>}
+                          </td>
+                          <td style={{ padding: '0.75rem 1rem' }}>
+                            <span style={{ fontSize: '0.75rem', padding: '0.125rem 0.5rem', borderRadius: '999px', background: '#f1f5f9', color: '#475569' }}>
+                              {g.categoria}
+                            </span>
+                          </td>
+                          <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 'bold', color: '#dc2626' }}>
+                            -${g.monto.toFixed(2)}
+                          </td>
+                          <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                            <button
+                              onClick={() => handleEliminarGasto(g.id)}
+                              className="text-gray-400 hover:text-red-500 transition-colors"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
   const renderReportes = () => {
     const totalVentas = ventas.reduce((sum, v) => sum + v.total, 0);
     const totalEfectivo = ventas.filter(v => v.metodo.includes('Efectivo')).reduce((sum, v) => sum + v.total, 0);
     const totalPagoMovil = ventas.filter(v => v.metodo.includes('Pago Móvil')).reduce((sum, v) => sum + v.total, 0);
     const totalDeudas = deudas.reduce((sum, d) => sum + d.total, 0);
+    const totalGastos = gastos.reduce((sum, g) => sum + g.monto, 0);
+    const gananciaNeta = totalVentas - totalGastos;
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto', height: '100%', paddingRight: '0.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#0f172a', margin: 0 }}>Reporte de Cierre</h2>
           <button
             onClick={descargarCSV}
@@ -927,17 +1139,22 @@ const WaterRefillSystem = () => {
             <p style={{ fontSize: '0.75rem', color: '#0284c7', marginTop: '0.25rem', fontWeight: '500', margin: 0 }}>{ventas.length} transacciones</p>
           </div>
           <div className="card" style={{ borderColor: '#dcfce7' }}>
-            <p style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Efectivo en Caja</p>
-            <p style={{ fontSize: '2rem', fontWeight: '900', color: '#166534', marginTop: '0.5rem' }}>${totalEfectivo.toFixed(2)}</p>
+            <p style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Ganancia Neta</p>
+            <p style={{ fontSize: '2rem', fontWeight: '900', color: gananciaNeta >= 0 ? '#166534' : '#dc2626', marginTop: '0.5rem' }}>${gananciaNeta.toFixed(2)}</p>
+            <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem', fontWeight: '500', margin: 0 }}>Ventas - Gastos</p>
           </div>
           <div className="card" style={{ borderColor: '#e9d5ff' }}>
-            <p style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Bancos / Pago Móvil</p>
-            <p style={{ fontSize: '2rem', fontWeight: '900', color: '#6b21a8', marginTop: '0.5rem' }}>${totalPagoMovil.toFixed(2)}</p>
+            <p style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Métodos de Pago y Deudas</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.5rem' }}>
+              <span className="text-sm">💵 Efec: <strong>${totalEfectivo.toFixed(2)}</strong></span>
+              <span className="text-sm">📱 Pago M: <strong>${totalPagoMovil.toFixed(2)}</strong></span>
+              <span className="text-sm" style={{ color: '#991b1b' }}>📝 Crédito: <strong>${totalDeudas.toFixed(2)}</strong></span>
+            </div>
           </div>
           <div className="card" style={{ borderColor: '#fee2e2' }}>
-            <p style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Créditos Pendientes</p>
-            <p style={{ fontSize: '2rem', fontWeight: '900', color: '#991b1b', marginTop: '0.5rem' }}>${totalDeudas.toFixed(2)}</p>
-            <p style={{ fontSize: '0.75rem', color: '#f87171', marginTop: '0.25rem', fontWeight: '500', margin: 0 }}>{deudas.length} cuentas</p>
+            <p style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Total Gastos</p>
+            <p style={{ fontSize: '2rem', fontWeight: '900', color: '#dc2626', marginTop: '0.5rem' }}>${totalGastos.toFixed(2)}</p>
+            <p style={{ fontSize: '0.75rem', color: '#f87171', marginTop: '0.25rem', fontWeight: '500', margin: 0 }}>{gastos.length} registrados</p>
           </div>
         </div>
 
@@ -1001,6 +1218,54 @@ const WaterRefillSystem = () => {
       </div>
     );
   };
+
+  const renderAdministracion = () => (
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ background: 'white', borderBottom: '1px solid #e2e8f0', padding: '0.5rem 1rem' }}>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#0f172a', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Briefcase size={20} className="text-blue-600" /> Administración
+        </h2>
+        <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto' }}>
+          {[
+            { id: 'reportes', label: 'Cierre', icon: FileText },
+            { id: 'deudas', label: 'Deudas', icon: Users },
+            { id: 'gastos', label: 'Gastos', icon: Wallet } // Changed icon to Wallet to match import
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setAdminTab(tab.id)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.5rem 1rem',
+                borderRadius: '0.5rem',
+                fontSize: '0.875rem',
+                fontWeight: '600',
+                background: adminTab === tab.id ? '#eff6ff' : 'transparent',
+                color: adminTab === tab.id ? '#0284c7' : '#64748b',
+                border: adminTab === tab.id ? '1px solid #bfdbfe' : '1px solid transparent',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              <tab.icon size={16} />
+              {tab.label}
+              {tab.id === 'deudas' && deudas.length > 0 && (
+                <span style={{ background: adminTab === tab.id ? '#0284c7' : '#94a3b8', color: 'white', borderRadius: 'full', padding: '0 0.4rem', fontSize: '0.70rem' }}>{deudas.length}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{ flex: 1, overflow: 'hidden' }}>
+        {adminTab === 'reportes' && renderReportes()}
+        {adminTab === 'deudas' && renderDeudas()}
+        {adminTab === 'gastos' && renderGastos()}
+      </div>
+    </div>
+  );
 
   // cleanup timers on unmount
   const renderInventario = () => {
@@ -1150,31 +1415,16 @@ const WaterRefillSystem = () => {
             </button>
             <div style={{ marginTop: '0.5rem', marginBottom: '0.5rem', borderTop: '1px solid rgba(255, 255, 255, 0.1)', marginLeft: '0.5rem', marginRight: '0.5rem' }}></div>
 
-            <div className="sidebar-section">Administración</div>
+            <div className="sidebar-section">Gestión</div>
             <button
               onClick={() => {
-                setVistaActual('deudas');
+                setVistaActual('administracion');
                 setSidebarAbierto(false);
               }}
-              className={`sidebar-button ${vistaActual === 'deudas' ? 'active' : ''}`}
+              className={`sidebar-button ${vistaActual === 'administracion' ? 'active' : ''}`}
             >
-              <Users size={20} />
-              <span>Deudas</span>
-              {deudas.length > 0 && (
-                <span style={{ marginLeft: 'auto', background: '#1e3a8a', color: 'white', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.25rem 0.5rem', borderRadius: '0.25rem' }}>
-                  {deudas.length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => {
-                setVistaActual('reportes');
-                setSidebarAbierto(false);
-              }}
-              className={`sidebar-button ${vistaActual === 'reportes' ? 'active' : ''}`}
-            >
-              <FileText size={20} />
-              <span>Cierre</span>
+              <Briefcase size={20} />
+              <span>Administración</span>
             </button>
           </div>
         </div>
@@ -1215,8 +1465,7 @@ const WaterRefillSystem = () => {
         )}
         {vistaActual === 'inventario' && renderInventario()}
         {vistaActual === 'carrito' && renderCarrito()}
-        {vistaActual === 'deudas' && renderDeudas()}
-        {vistaActual === 'reportes' && renderReportes()}
+        {vistaActual === 'administracion' && renderAdministracion()}
       </main>
 
       {/* Bottom Navigation for Mobile */}
@@ -1248,18 +1497,11 @@ const WaterRefillSystem = () => {
           )}
         </button>
         <button
-          onClick={() => setVistaActual('deudas')}
-          className={`bottom-nav-item ${vistaActual === 'deudas' ? 'active' : ''}`}
+          onClick={() => setVistaActual('administracion')}
+          className={`bottom-nav-item ${vistaActual === 'administracion' ? 'active' : ''}`}
         >
-          <Users size={24} />
-          <span>Deudas</span>
-        </button>
-        <button
-          onClick={() => setVistaActual('reportes')}
-          className={`bottom-nav-item ${vistaActual === 'reportes' ? 'active' : ''}`}
-        >
-          <FileText size={24} />
-          <span>Cierre</span>
+          <Briefcase size={24} />
+          <span>Admin</span>
         </button>
       </nav>
 

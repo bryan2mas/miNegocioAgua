@@ -136,3 +136,40 @@ export async function saveStock(payload) {
     throw err;
   }
 }
+
+// Gastos (Expenses) helpers
+export async function saveGasto(gasto) {
+  try {
+    if (!gasto || !gasto.id) throw new Error('gasto must have id');
+    const gastosRef = doc(db, 'gastos', String(gasto.id));
+    await setDoc(gastosRef, { ...gasto, persistedAt: serverTimestamp() });
+    return { id: gasto.id };
+  } catch (err) {
+    console.error('saveGasto error', err);
+    throw err;
+  }
+}
+
+export async function deleteGasto(gastoId) {
+  try {
+    if (!gastoId) throw new Error('gastoId required');
+    const gastoRef = doc(db, 'gastos', String(gastoId));
+    await deleteDoc(gastoRef);
+    return { id: gastoId };
+  } catch (err) {
+    console.error('deleteGasto error', err);
+    throw err;
+  }
+}
+
+export async function fetchGastos() {
+  try {
+    const q = collection(db, 'gastos');
+    const snap = await getDocs(q);
+    const items = snap.docs.map(d => ({ ...d.data(), id: isNaN(Number(d.id)) ? d.id : Number(d.id) }));
+    return items;
+  } catch (err) {
+    console.error('fetchGastos error', err);
+    throw err;
+  }
+}
