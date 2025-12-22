@@ -77,8 +77,7 @@ const WaterRefillSystem = () => {
   const [sidebarAbierto, setSidebarAbierto] = useState(false);
   // Estados para Nuevo Producto (modal)
   const [nuevoProductoModalOpen, setNuevoProductoModalOpen] = useState(false);
-  const [nuevoProductoNombre, setNuevoProductoNombre] = useState('');
-  const [nuevoProductoPrecio, setNuevoProductoPrecio] = useState('');
+
   // Admin usuario para auditoría
   const [adminUsuario] = useState('Admin');
 
@@ -159,7 +158,7 @@ const WaterRefillSystem = () => {
     const n = nombre.toString().toLowerCase();
     const m = n.match(/(\d+)\s*l/); // like '20L' or '20 l'
     if (m && m[1]) return Number(m[1]);
-    const m2 = n.match(/(\d+)\s*l/);
+
     return 0;
   };
 
@@ -236,8 +235,7 @@ const WaterRefillSystem = () => {
   };
 
   const abrirModalNuevoProducto = () => {
-    setNuevoProductoNombre('');
-    setNuevoProductoPrecio('');
+
     setNuevoProductoModalOpen(true);
   };
 
@@ -247,20 +245,7 @@ const WaterRefillSystem = () => {
     setNuevoProductoModalOpen(false);
   };
 
-  const confirmarAgregarProducto = () => {
-    const nombre = (nuevoProductoNombre || '').trim();
-    const precio = parseFloat(nuevoProductoPrecio);
-    if (!nombre) {
-      alert('Ingrese el nombre del producto.');
-      return;
-    }
-    if (isNaN(precio) || precio < 0) {
-      alert('Ingrese un precio válido mayor o igual a 0.');
-      return;
-    }
-    agregarProductoCatalogo(nombre, precio);
-    cerrarModalNuevoProducto();
-  };
+
 
   // Handler para el modal externo (ProductModal)
   const handleProductModalConfirm = (nombre, precioStr) => {
@@ -1093,8 +1078,9 @@ const WaterRefillSystem = () => {
 
   // cleanup timers on unmount
   useEffect(() => {
+    const timers = deleteTimers.current;
     return () => {
-      Object.values(deleteTimers.current).forEach(t => { if (t) clearTimeout(t); });
+      Object.values(timers).forEach(t => { if (t) clearTimeout(t); });
     };
   }, []);
 
@@ -1280,8 +1266,8 @@ const WaterRefillSystem = () => {
       {/* Modales */}
       {modalPagoAbierto && renderModalPagoVenta()}
       {modalSaldarAbierto && renderModalSaldarDeuda()}
-      <ProductModal open={nuevoProductoModalOpen} onClose={cerrarModalNuevoProducto} onConfirm={handleProductModalConfirm} />
-      <PasswordModal open={passwordModalOpen} onClose={closePasswordModal} onConfirm={handlePasswordConfirm} title="Confirmar eliminación" placeholder="Ingrese contraseña" info={`La venta podrá deshacerse durante ${DELETE_UNDO_MS / 1000} segundos.`} />
+      {nuevoProductoModalOpen && <ProductModal open={true} onClose={cerrarModalNuevoProducto} onConfirm={handleProductModalConfirm} />}
+      {passwordModalOpen && <PasswordModal open={true} onClose={closePasswordModal} onConfirm={handlePasswordConfirm} title="Confirmar eliminación" placeholder="Ingrese contraseña" info={`La venta podrá deshacerse durante ${DELETE_UNDO_MS / 1000} segundos.`} />}
       <Toaster richColors position="top-center" expand={true} />
     </div>
   );

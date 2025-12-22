@@ -6,11 +6,9 @@ export default function PasswordModal({ open, onClose, onConfirm, title = 'Confi
   const ref = useRef(null);
 
   useEffect(() => {
-    if (open) {
-      setValue('');
-      setTimeout(() => ref.current?.focus(), 0);
-    }
-  }, [open]);
+    // focus on mount
+    setTimeout(() => ref.current?.focus(), 0);
+  }, []);
 
   useEffect(() => {
     const onKey = (e) => {

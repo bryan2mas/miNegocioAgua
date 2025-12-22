@@ -7,13 +7,9 @@ export default function ProductModal({ open, onClose, onConfirm, defaultName = '
   const nameRef = useRef(null);
 
   useEffect(() => {
-    if (open) {
-      setName(defaultName || '');
-      setPrice(defaultPrice || '');
-      // focus first field
-      setTimeout(() => nameRef.current?.focus(), 0);
-    }
-  }, [open, defaultName, defaultPrice]);
+    // focus first field
+    setTimeout(() => nameRef.current?.focus(), 0);
+  }, []);
 
   useEffect(() => {
     const onKey = (e) => {

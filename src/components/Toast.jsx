@@ -29,8 +29,4 @@ export function notifyToast(message, type = 'info', duration = 3000, action = nu
   }
 }
 
-// Componente dummy para no romper importaciones en App.jsx hasta que se actualice
-// Aunque ahora usaremos <Toaster /> de sonner directamente en App.jsx
-export default function ToastContainer() {
-  return null;
-}
+
