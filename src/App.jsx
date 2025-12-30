@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import Login from './components/Login';
 import ProductModal from './components/ProductModal';
 import PasswordModal from './components/PasswordModal';
 import { notifyToast } from './components/Toast';
@@ -150,23 +152,7 @@ const WaterRefillSystem = () => {
           t={t}
           currentStock={stockLitros}
           onConfirm={(amount) => {
-            const add = Number(amount);
-            const nuevo = Math.max(0, (Number(stockLitros) || 0) + add);
-            setStockLitros(nuevo);
-            saveStock({ liters: nuevo })
-              .then(() => {
-                notifyToast(`Tanque recargado +${add} L (total ${nuevo} L)`, 'info');
-                logAudit({
-                  action: 'stock_recharged',
-                  user: adminUsuario,
-                  amount: add,
-                  when: new Date().toISOString(),
-                });
-              })
-              .catch((err) => {
-                console.error('saveStock failed', err);
-                notifyToast('Error al guardar stock', 'error');
-              });
+            openPasswordModal({ type: 'REFILL_STOCK', payload: amount });
           }}
         />
       ),
@@ -183,33 +169,55 @@ const WaterRefillSystem = () => {
     return 0;
   };
 
-  // Estado para modal de contraseña antes de eliminar
+  // Estado para modal de contraseña
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
-  const [passwordTargetVenta, setPasswordTargetVenta] = useState(null);
+  // passwordActionPending: { type: 'DELETE_VENTA' | 'REFILL_STOCK', payload: any }
+  const [passwordActionPending, setPasswordActionPending] = useState(null);
 
-  const openPasswordModalForVenta = (id) => {
-    setPasswordTargetVenta(id);
+  const openPasswordModal = (action) => {
+    setPasswordActionPending(action);
     setPasswordModalOpen(true);
   };
 
   const closePasswordModal = () => {
-    setPasswordTargetVenta(null);
+    setPasswordActionPending(null);
     setPasswordModalOpen(false);
   };
 
   const handlePasswordConfirm = (pwd) => {
     // contraseña esperada
     if ((pwd || '').trim() !== 'dosde3.agua') {
-      notifyToast('Contraseña incorrecta. Eliminación cancelada.', 'error');
+      notifyToast('Contraseña incorrecta. Cancelado.', 'error');
       closePasswordModal();
       return;
     }
-    // procede a marcar y programar eliminación
-    const id = passwordTargetVenta;
+
+    // Auth success: execute pending action
+    const action = passwordActionPending;
     closePasswordModal();
-    if (id) {
-      // reuse existing logic by calling eliminarVentaPending
-      eliminarVentaPending(id);
+
+    if (!action) return;
+
+    if (action.type === 'DELETE_VENTA') {
+      eliminarVentaPending(action.payload);
+    } else if (action.type === 'REFILL_STOCK') {
+      const amount = Number(action.payload);
+      const nuevo = Math.max(0, (Number(stockLitros) || 0) + amount);
+      setStockLitros(nuevo);
+      saveStock({ liters: nuevo })
+        .then(() => {
+          notifyToast(`Tanque recargado +${amount} L (total ${nuevo} L)`, 'info');
+          logAudit({
+            action: 'stock_recharged',
+            user: adminUsuario,
+            amount: amount,
+            when: new Date().toISOString(),
+          });
+        })
+        .catch((err) => {
+          console.error('saveStock failed', err);
+          notifyToast('Error al guardar stock', 'error');
+        });
     }
   };
 
@@ -488,7 +496,7 @@ const WaterRefillSystem = () => {
   // --- Eliminar ventas (corrección por equivocación) ---
   // abrir modal de contraseña antes de iniciar eliminación (pendiente)
   const eliminarVenta = (id) => {
-    openPasswordModalForVenta(id);
+    openPasswordModal({ type: 'DELETE_VENTA', payload: id });
   };
 
   // --- Componentes Renderizados ---
@@ -967,7 +975,7 @@ const WaterRefillSystem = () => {
 
     return (
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-        <div style={{ padding: '1.5rem', borderBottom: '1px solid #e2e8f0', background: 'white' }}>
+        <div style={{ padding: '1.5rem', borderRadius: '0.5rem', borderBottom: '1px solid #e2e8f0', background: 'white' }}>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
             <Wallet size={24} className="text-blue-600" /> Gastos y Proveedores
           </h2>
@@ -1120,7 +1128,7 @@ const WaterRefillSystem = () => {
     const gananciaNeta = totalVentas - totalGastos;
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto', height: '100%', paddingRight: '0.5rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', height: '100%', paddingRight: '0.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#0f172a', margin: 0 }}>Reporte de Cierre</h2>
           <button
@@ -1221,7 +1229,7 @@ const WaterRefillSystem = () => {
 
   const renderAdministracion = () => (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ background: 'white', borderBottom: '1px solid #e2e8f0', padding: '0.5rem 1rem' }}>
+      <div style={{ borderRadius: '0.5rem', background: 'white', borderBottom: '1px solid #e2e8f0', padding: '0.5rem 1rem' }}>
         <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#0f172a', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Briefcase size={20} className="text-blue-600" /> Administración
         </h2>
@@ -1509,10 +1517,26 @@ const WaterRefillSystem = () => {
       {modalPagoAbierto && renderModalPagoVenta()}
       {modalSaldarAbierto && renderModalSaldarDeuda()}
       {nuevoProductoModalOpen && <ProductModal open={true} onClose={cerrarModalNuevoProducto} onConfirm={handleProductModalConfirm} />}
-      {passwordModalOpen && <PasswordModal open={true} onClose={closePasswordModal} onConfirm={handlePasswordConfirm} title="Confirmar eliminación" placeholder="Ingrese contraseña" info={`La venta podrá deshacerse durante ${DELETE_UNDO_MS / 1000} segundos.`} />}
-      <Toaster richColors position="top-center" expand={true} />
+      {passwordModalOpen && <PasswordModal open={true} onClose={closePasswordModal} onConfirm={handlePasswordConfirm} title={passwordActionPending?.type === 'REFILL_STOCK' ? "Confirmar Recarga" : "Confirmar Eliminación"} placeholder="Ingrese contraseña" info={passwordActionPending?.type === 'REFILL_STOCK' ? "Se modificará el inventario." : `La venta podrá deshacerse durante ${DELETE_UNDO_MS / 1000} segundos.`} />}
     </div>
   );
 };
 
-export default WaterRefillSystem;
+const AppContent = () => {
+  const { currentUser } = useAuth();
+  if (!currentUser) {
+    return <Login />;
+  }
+  return <WaterRefillSystem />;
+}
+
+const App = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+      <Toaster richColors position="top-center" expand={true} />
+    </AuthProvider>
+  );
+};
+
+export default App;

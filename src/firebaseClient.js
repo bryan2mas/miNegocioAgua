@@ -2,6 +2,7 @@
 // IMPORTANT: Keep your config values in this file or use environment variables.
 
 import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
 import {
   getFirestore,
   collection,
@@ -26,6 +27,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+export const auth = getAuth(app);
 
 export async function logAudit(entry) {
   try {
