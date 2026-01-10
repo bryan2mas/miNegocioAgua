@@ -3,43 +3,27 @@ import './App.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './components/Login';
 import ProductModal from './components/ProductModal';
+import ProductCard from './components/ProductCard';
 import PasswordModal from './components/PasswordModal';
 import { notifyToast } from './components/Toast';
 import { Toaster, toast } from 'sonner';
 import RefillToast from './components/RefillToast';
 import { logAudit, saveVenta, saveProducto, deleteVenta, deleteProducto, fetchProductos, fetchVentas, fetchStock, saveStock, saveGasto, fetchGastos, deleteGasto } from './firebase';
 import {
-  ShoppingCart,
-  Droplets,
-  CreditCard,
-  Users,
-  FileText,
-  Trash2,
-  Plus,
-  Minus,
-  Search,
-  Download,
-  X,
-  CheckCircle,
-  Smartphone,
-  Banknote,
-  Store,
-  Package,
-  Briefcase,
-  Wallet,
-  Truck,
-  TrendingDown
+  Plus, Trash2, TrendingUp, TrendingDown, Users, Calendar, Search, LogOut, Package, Droplets,
+  ChevronRight, Menu, X, Check, ShoppingCart, User, Download, FileText, Wallet, Settings,
+  Briefcase, CheckCircle, Smartphone, Banknote, CreditCard, Minus, Store, Truck, AlertTriangle
 } from 'lucide-react';
 
 // --- Datos Iniciales y Configuración ---
 
 const PRODUCTOS_INICIALES = [
-  { id: 1, nombre: 'Botellon 20L', precio: 100, icono: 'big', consumoLitros: 20 },
-  { id: 2, nombre: 'Botellon 18L', precio: 100, icono: 'big', consumoLitros: 18 },
-  { id: 3, nombre: 'Botellon 15L', precio: 80, icono: 'medium', consumoLitros: 15 },
-  { id: 4, nombre: 'Botellon 12L', precio: 60, icono: 'small', consumoLitros: 12 },
-  { id: 5, nombre: 'Botellon 8L', precio: 30, icono: 'small', consumoLitros: 8 },
-  { id: 6, nombre: 'Botella 5L', precio: 30, icono: 'small', consumoLitros: 5 },
+  { id: 1, nombre: 'Botellon 20L', precio: 150, icono: 'big', consumoLitros: 20 },
+  { id: 2, nombre: 'Botellon 18L', precio: 150, icono: 'big', consumoLitros: 18 },
+  { id: 3, nombre: 'Botellon 15L', precio: 120, icono: 'medium', consumoLitros: 15 },
+  { id: 4, nombre: 'Botellon 12L', precio: 100, icono: 'small', consumoLitros: 12 },
+  { id: 5, nombre: 'Botellon 8L', precio: 50, icono: 'small', consumoLitros: 8 },
+  { id: 6, nombre: 'Botella 5L', precio: 50, icono: 'small', consumoLitros: 5 },
   { id: 7, nombre: 'Tapa Generica', precio: 10, icono: 'accessory', consumoLitros: 0 },
 ];
 
@@ -54,14 +38,15 @@ const METODOS_PAGO_DEUDA = {
   PAGO_MOVIL: 'Pago Móvil'
 };
 
-const MAX_TANQUE_LITROS = 5000;
+const MAX_TANQUE_LITROS = 6000;
+const REFILL_AMOUNT = 6000;
 
 const WaterRefillSystem = () => {
   // --- Estados de la Aplicación ---
   const [vistaActual, setVistaActual] = useState('productos');
   const [carrito, setCarrito] = useState([]);
   const [productos, setProductos] = useState(PRODUCTOS_INICIALES);
-  const [stockLitros, setStockLitros] = useState(5000);
+  const [stockLitros, setStockLitros] = useState(6000);
   const [ventas, setVentas] = useState([]);
   const [gastos, setGastos] = useState([]);
   const [deudas, setDeudas] = useState([]);
@@ -306,18 +291,15 @@ const WaterRefillSystem = () => {
     }
   };
 
-  const eliminarDelCarrito = (id) => {
-    setCarrito(carrito.filter(item => item.id !== id));
-  };
+
 
   const actualizarCantidad = (id, delta) => {
-    setCarrito(carrito.map(item => {
+    setCarrito(prev => prev.map(item => {
       if (item.id === id) {
-        const nuevaCant = item.cantidad + delta;
-        return nuevaCant > 0 ? { ...item, cantidad: nuevaCant } : item;
+        return { ...item, cantidad: Math.max(0, item.cantidad + delta) };
       }
       return item;
-    }));
+    }).filter(item => item.cantidad > 0));
   };
 
   // --- Gestión del Catálogo (CRUD básico) ---
@@ -513,34 +495,21 @@ const WaterRefillSystem = () => {
       <div className="combined-layout">
         <div className="combined-products">
           <div className="products-grid">
-            {productos.map(prod => (
-              <div
-                key={prod.id}
-                className="product-card"
-              >
-                <button
-                  className="add-button"
-                  onClick={(e) => { e.stopPropagation(); agregarAlCarrito(prod); }}
-                  aria-label={`Agregar ${prod.nombre}`}
-                >
-                  <Plus size={18} />
-                </button>
-                <button
-                  className="delete-button"
-                  onClick={(e) => { e.stopPropagation(); eliminarProductoCatalogo(prod.id); }}
-                  title="Eliminar producto"
-                  style={{ position: 'absolute', left: '0.5rem', top: '0.5rem', background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer' }}
-                >
-                  <Trash2 size={14} />
-                </button>
-                <div className="product-icon">
-                  <Droplets size={40} />
-                </div>
-                <span className="product-name">{prod.nombre}</span>
-                <span className="product-price">${prod.precio.toFixed(2)}</span>
-                <span className="product-hint">Agregar al carrito</span>
-              </div>
-            ))}
+            {productos.map(prod => {
+              const itemEnCarrito = carrito.find(i => i.id === prod.id);
+              const cantidad = itemEnCarrito ? itemEnCarrito.cantidad : 0;
+
+              return (
+                <ProductCard
+                  key={prod.id}
+                  prod={prod}
+                  cantidad={cantidad}
+                  onAdd={agregarAlCarrito}
+                  onDecrement={(id) => actualizarCantidad(id, -1)}
+                  onDeleteCatalog={eliminarProductoCatalogo}
+                />
+              );
+            })}
             <button
               style={{ borderStyle: 'dashed', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'transparent' }}
               className="product-card"
@@ -614,88 +583,91 @@ const WaterRefillSystem = () => {
   const renderCarrito = () => (
     <div className="cart-container">
       <div className="cart-header">
-        <h2><ShoppingCart size={24} /> Resumen del Pedido</h2>
+        <h2><ShoppingCart size={22} strokeWidth={2.5} /> Tu Pedido</h2>
         <span className="cart-badge">{cantidadItemsCarrito} ítems</span>
       </div>
 
       <div className="cart-items">
         {carrito.length === 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#cbd5e1' }}>
-            <ShoppingCart size={64} style={{ opacity: 0.2, marginBottom: '1rem' }} />
-            <p style={{ fontSize: '1.125rem' }}>El carrito está vacío</p>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', padding: '3rem' }}>
+            <div style={{ background: '#f1f5f9', padding: '1.5rem', borderRadius: '50%', marginBottom: '1.5rem' }}>
+              <ShoppingCart size={40} style={{ opacity: 0.5 }} />
+            </div>
+            <p style={{ fontSize: '1.1rem', fontWeight: '500', margin: 0 }}>Tu carrito está vacío</p>
+            <p style={{ fontSize: '0.9rem', marginBottom: '1.5rem' }}>¡Agrega productos para comenzar!</p>
             <button
               onClick={() => setVistaActual('productos')}
-              style={{ marginTop: '1rem', color: '#0284c7', fontWeight: 'bold', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+              style={{ color: 'var(--color-primary-600)', fontWeight: 'bold', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
             >
-              Ir a Productos
+              Ir al Catálogo <ChevronRight size={16} />
             </button>
           </div>
         ) : (
           carrito.map(item => (
             <div key={item.id} className="cart-item">
               <div className="cart-item-info">
-                <div className="cart-item-details">
-                  <div className="cart-item-name">{item.nombre}</div>
-                  <div className="cart-item-price">${item.precio.toFixed(2)} unidad</div>
-                </div>
+                <div className="cart-item-name">{item.nombre}</div>
+                <div className="cart-item-price">${item.precio.toFixed(2)} / ud</div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <div className="cart-item-controls">
-                  <button onClick={() => actualizarCantidad(item.id, -1)}><Minus size={16} /></button>
-                  <span className="cart-item-quantity">{item.cantidad}</span>
-                  <button onClick={() => actualizarCantidad(item.id, 1)}><Plus size={16} /></button>
-                </div>
-                <div style={{ width: '4.5rem', textAlign: 'right' }}>
-                  <p style={{ fontWeight: 'bold', fontSize: '1.125rem', color: '#0f172a' }}>${(item.precio * item.cantidad).toFixed(2)}</p>
-                </div>
-                <button onClick={() => eliminarDelCarrito(item.id)} style={{ padding: '0.5rem', color: '#f87171', background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: '0.5rem', transition: 'background 0.25s ease' }} onMouseEnter={(e) => e.target.style.background = '#fee2e2'} onMouseLeave={(e) => e.target.style.background = 'transparent'}>
-                  <Trash2 size={20} />
+              <div className="cart-item-controls">
+                <button onClick={() => actualizarCantidad(item.id, -1)} aria-label="Menos">
+                  <Minus size={14} strokeWidth={3} />
                 </button>
+                <span className="cart-item-quantity">{item.cantidad}</span>
+                <button onClick={() => actualizarCantidad(item.id, 1)} aria-label="Más">
+                  <Plus size={14} strokeWidth={3} />
+                </button>
+              </div>
+
+              <div className="cart-item-total">
+                ${(item.precio * item.cantidad).toFixed(2)}
               </div>
             </div>
           ))
         )}
       </div>
 
-      <div style={{ padding: '1rem 1.5rem', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-        <label style={{ fontSize: '1rem', fontWeight: '600', color: '#0f172a', flex: 1 }}>Delivery</label>
-        <input
-          type="text"
-          inputMode='numeric'
-          value={montoDelivery}
-          onChange={(e) => setMontoDelivery(Number(e.target.value) || 0)}
-          className="modal-input"
-          placeholder="0.00"
-          style={{ width: '5rem', padding: '0.5rem' }}
-        />
-      </div>
-
-      <div style={{ padding: '0 1.5rem 1.5rem 1.5rem', borderTop: '1px solid #e2e8f0' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-          <span style={{ fontSize: '0.875rem', color: '#64748b' }}>Subtotal</span>
-          <span style={{ fontSize: '0.875rem', color: '#0f172a', fontWeight: '500' }}>${totalCarrito.toFixed(2)}</span>
+      <div className="cart-summary">
+        <div className="delivery-input-group">
+          <Truck size={20} className="text-slate-400" style={{ marginRight: '0.75rem', color: '#64748b' }} />
+          <div style={{ flex: 1 }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase' }}>Delivery / Envío</label>
+            <input
+              type="text"
+              inputMode='numeric'
+              value={montoDelivery}
+              onChange={(e) => setMontoDelivery(Number(e.target.value) || 0)}
+              style={{ width: '100%', border: 'none', background: 'transparent', fontWeight: '600', color: '#0f172a', fontSize: '1rem', outline: 'none' }}
+              placeholder="0.00"
+            />
+          </div>
+          <span style={{ fontWeight: 'bold', color: '#94a3b8' }}>$</span>
         </div>
+
+        <div className="summary-row">
+          <span>Subtotal</span>
+          <span>${totalCarrito.toFixed(2)}</span>
+        </div>
+
         {montoDelivery > 0 && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.875rem', color: '#64748b' }}>Delivery</span>
-            <span style={{ fontSize: '0.875rem', color: '#0f172a', fontWeight: '500' }}>${(Number(montoDelivery) || 0).toFixed(2)}</span>
+          <div className="summary-row" style={{ color: 'var(--color-primary-600)' }}>
+            <span>+ Delivery</span>
+            <span>${(Number(montoDelivery) || 0).toFixed(2)}</span>
           </div>
         )}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem' }}>
-          <span style={{ fontSize: '1rem', fontWeight: '700', color: '#0f172a' }}>Total</span>
-          <span style={{ fontSize: '1.5rem', fontWeight: '900', color: '#0284c7' }}>${totalConDelivery.toFixed(2)}</span>
-        </div>
-      </div>
 
-      <div style={{ padding: '1.5rem' }}>
+        <div className="summary-total">
+          <span className="summary-total-label">Total a Pagar</span>
+          <span className="summary-total-value">${totalConDelivery.toFixed(2)}</span>
+        </div>
+
         <button
           onClick={() => setModalPagoAbierto(true)}
           disabled={carrito.length === 0}
           className="checkout-button"
-          style={{ opacity: carrito.length === 0 ? 0.5 : 1, cursor: carrito.length === 0 ? 'not-allowed' : 'pointer' }}
         >
-          Procesar Pago
+          Procesar Pago <ChevronRight size={20} strokeWidth={3} />
         </button>
       </div>
     </div>
@@ -866,13 +838,14 @@ const WaterRefillSystem = () => {
     const deudasFiltradas = deudas.filter(d => d.cliente.toLowerCase().includes(busquedaDeuda.toLowerCase()));
 
     return (
-      <div className="card" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ padding: '1.5rem', borderBottom: '1px solid #e2e8f0', background: '#ffffff', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+      <div className="module-container">
+        <div className="module-header">
           <div>
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.5rem', fontWeight: 'bold', color: '#0f172a', margin: 0 }}>
-              <Users style={{ color: '#0284c7' }} size={24} /> Cuentas por Cobrar
+            <h2 className="module-title">
+              <Users size={24} className="text-blue-600" /> Cuentas por Cobrar
             </h2>
-            <p style={{ fontSize: '0.875rem', color: '#94a3b8', marginTop: '0.25rem', margin: 0 }}>Gestión de créditos y pagos pendientes</p>
+            <p className="module-subtitle">Gestión de créditos y pagos pendientes</p>
           </div>
 
           <div style={{ position: 'relative' }}>
@@ -883,12 +856,12 @@ const WaterRefillSystem = () => {
               value={busquedaDeuda}
               onChange={(e) => setBusquedaDeuda(e.target.value)}
               className="modal-input"
-              style={{ paddingLeft: '2.5rem' }}
+              style={{ paddingLeft: '2.5rem', width: '250px' }}
             />
           </div>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', background: '#f8fafc', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0.25rem' }}>
           {deudasFiltradas.length === 0 ? (
             <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', opacity: 0.6 }}>
               <FileText size={48} style={{ marginBottom: '0.5rem' }} />
@@ -974,15 +947,17 @@ const WaterRefillSystem = () => {
       .reduce((sum, g) => sum + g.monto, 0);
 
     return (
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-        <div style={{ padding: '1.5rem', borderRadius: '0.5rem', borderBottom: '1px solid #e2e8f0', background: 'white' }}>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
-            <Wallet size={24} className="text-blue-600" /> Gastos y Proveedores
-          </h2>
-          <p style={{ color: '#64748b', fontSize: '0.875rem', marginTop: '0.25rem' }}>Registro de salidas de dinero</p>
+      <div className="module-container">
+        <div className="module-header">
+          <div>
+            <h2 className="module-title">
+              <Wallet size={24} className="text-blue-600" /> Gastos y Proveedores
+            </h2>
+            <p className="module-subtitle">Registro de salidas de dinero</p>
+          </div>
         </div>
 
-        <div className="combined-layout" style={{ background: '#f8fafc', padding: '1rem', gap: '1rem' }}>
+        <div className="combined-layout" style={{ background: 'transparent', padding: 0 }}>
           {/* Formulario de Registro */}
           <div className="card" style={{ padding: '1.5rem', height: 'fit-content' }}>
             <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', marginBottom: '1rem', color: '#0f172a' }}>Registrar Gasto</h3>
@@ -996,7 +971,6 @@ const WaterRefillSystem = () => {
                   onChange={(e) => setGastoDescripcion(e.target.value)}
                   placeholder="Ej. Compra de tapas, Pago de luz..."
                   className="modal-input"
-                  style={{ width: '100%' }}
                 />
               </div>
 
@@ -1039,31 +1013,32 @@ const WaterRefillSystem = () => {
 
               <button
                 onClick={agregarGasto}
-                className="btn-primary"
-                style={{ justifyContent: 'center', marginTop: '0.5rem' }}
+                className="btn-action btn-primary"
+                style={{ width: '100%' }}
               >
+                <Plus size={18} />
                 Registrar Gasto
               </button>
             </div>
           </div>
 
           {/* Listado y Resumen */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', flex: 1 }}>
             {/* Card Resumen Hoy */}
-            <div className="card" style={{ padding: '1rem', background: 'linear-gradient(135deg, #fef2f2 0%, #fff 100%)', borderColor: '#fecaca' }}>
+            <div className="stats-card stats-card--red">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <p className="text-xs font-bold text-red-500 uppercase tracking-wider">Total Gastos (Hoy)</p>
-                  <p className="text-2xl font-black text-red-700">${totalGastosHoy.toFixed(2)}</p>
+                  <p className="stats-label" style={{ color: '#ef4444' }}>Total Gastos (Hoy)</p>
+                  <p className="stats-value" style={{ color: '#b91c1c' }}>${totalGastosHoy.toFixed(2)}</p>
                 </div>
                 <TrendingDown size={32} className="text-red-300" />
               </div>
             </div>
 
-            {/* Lista Scrollable */}
-            <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              <div style={{ padding: '1rem', borderBottom: '1px solid #e2e8f0' }}>
-                <h3 style={{ fontSize: '1rem', fontWeight: 'bold' }}>Historial Reciente</h3>
+            {/* Tabla Estandarizada */}
+            <div className="table-container" style={{ flex: 1 }}>
+              <div className="table-header">
+                <h3 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0 }}>Historial Reciente</h3>
               </div>
               <div style={{ overflowY: 'auto', flex: 1 }}>
                 {gastos.length === 0 ? (
@@ -1071,38 +1046,39 @@ const WaterRefillSystem = () => {
                     No hay gastos registrados
                   </div>
                 ) : (
-                  <table style={{ width: '100%', fontSize: '0.875rem', textAlign: 'left' }}>
-                    <thead style={{ background: '#f8fafc', color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase' }}>
+                  <table className="data-table">
+                    <thead>
                       <tr>
-                        <th style={{ padding: '0.75rem 1rem' }}>Fecha</th>
-                        <th style={{ padding: '0.75rem 1rem' }}>Desc.</th>
-                        <th style={{ padding: '0.75rem 1rem' }}>Cat.</th>
-                        <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Monto</th>
-                        <th style={{ padding: '0.75rem 1rem', width: '40px' }}></th>
+                        <th>Fecha</th>
+                        <th>Desc.</th>
+                        <th>Cat.</th>
+                        <th style={{ textAlign: 'right' }}>Monto</th>
+                        <th style={{ width: '40px' }}></th>
                       </tr>
                     </thead>
-                    <tbody style={{ divideY: '1px solid #e2e8f0' }}>
+                    <tbody>
                       {gastos.map(g => (
-                        <tr key={g.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '0.75rem 1rem', color: '#64748b' }}>
+                        <tr key={g.id}>
+                          <td style={{ color: 'var(--color-slate-500)' }}>
                             {new Date(g.fecha).toLocaleDateString()}
                           </td>
-                          <td style={{ padding: '0.75rem 1rem', fontWeight: '500' }}>
-                            {g.descripcion}
-                            {g.referencia && <span className="block text-xs text-gray-400">Ref: {g.referencia}</span>}
+                          <td>
+                            <div style={{ fontWeight: '500', color: 'var(--color-slate-900)' }}>{g.descripcion}</div>
+                            {g.referencia && <div style={{ fontSize: '0.75rem', color: 'var(--color-slate-400)' }}>Ref: {g.referencia}</div>}
                           </td>
-                          <td style={{ padding: '0.75rem 1rem' }}>
-                            <span style={{ fontSize: '0.75rem', padding: '0.125rem 0.5rem', borderRadius: '999px', background: '#f1f5f9', color: '#475569' }}>
+                          <td>
+                            <span className="status-badge status-badge--neutral">
                               {g.categoria}
                             </span>
                           </td>
-                          <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 'bold', color: '#dc2626' }}>
+                          <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#dc2626' }}>
                             -${g.monto.toFixed(2)}
                           </td>
-                          <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                          <td style={{ textAlign: 'center' }}>
                             <button
                               onClick={() => handleEliminarGasto(g.id)}
                               className="text-gray-400 hover:text-red-500 transition-colors"
+                              style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
                             >
                               <Trash2 size={16} />
                             </button>
@@ -1128,84 +1104,80 @@ const WaterRefillSystem = () => {
     const gananciaNeta = totalVentas - totalGastos;
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', height: '100%', paddingRight: '0.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem' }}>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#0f172a', margin: 0 }}>Reporte de Cierre</h2>
+      <div className="module-container">
+        <div className="module-header">
+          <div>
+            <h2 className="module-title">Reporte de Cierre</h2>
+            <p className="module-subtitle">Resumen general del negocio</p>
+          </div>
           <button
             onClick={descargarCSV}
-            className="btn-primary"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            className="btn-action btn-primary"
           >
             <Download size={18} /> Exportar Excel
           </button>
         </div>
 
-        <div className="grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
-          <div className="card" style={{ borderColor: '#dbeafe' }}>
-            <p style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Ventas Totales</p>
-            <p style={{ fontSize: '2rem', fontWeight: '900', color: '#1e3a8a', marginTop: '0.5rem' }}>${totalVentas.toFixed(2)}</p>
-            <p style={{ fontSize: '0.75rem', color: '#0284c7', marginTop: '0.25rem', fontWeight: '500', margin: 0 }}>{ventas.length} transacciones</p>
+        <div className="stats-grid">
+          <div className="stats-card stats-card--blue">
+            <p className="stats-label">Ventas Totales</p>
+            <p className="stats-value">${totalVentas.toFixed(2)}</p>
+            <p className="stats-subtext">{ventas.length} transacciones</p>
           </div>
-          <div className="card" style={{ borderColor: '#dcfce7' }}>
-            <p style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Ganancia Neta</p>
-            <p style={{ fontSize: '2rem', fontWeight: '900', color: gananciaNeta >= 0 ? '#166534' : '#dc2626', marginTop: '0.5rem' }}>${gananciaNeta.toFixed(2)}</p>
-            <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem', fontWeight: '500', margin: 0 }}>Ventas - Gastos</p>
+          <div className="stats-card stats-card--green">
+            <p className="stats-label">Ganancia Neta</p>
+            <p className="stats-value" style={{ color: gananciaNeta >= 0 ? '#166534' : '#dc2626' }}>${gananciaNeta.toFixed(2)}</p>
+            <p className="stats-subtext">Ventas - Gastos</p>
           </div>
-          <div className="card" style={{ borderColor: '#e9d5ff' }}>
-            <p style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Métodos de Pago y Deudas</p>
+          <div className="stats-card stats-card--purple">
+            <p className="stats-label">Métodos de Pago</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.5rem' }}>
               <span className="text-sm">💵 Efec: <strong>${totalEfectivo.toFixed(2)}</strong></span>
               <span className="text-sm">📱 Pago M: <strong>${totalPagoMovil.toFixed(2)}</strong></span>
               <span className="text-sm" style={{ color: '#991b1b' }}>📝 Crédito: <strong>${totalDeudas.toFixed(2)}</strong></span>
             </div>
           </div>
-          <div className="card" style={{ borderColor: '#fee2e2' }}>
-            <p style={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Total Gastos</p>
-            <p style={{ fontSize: '2rem', fontWeight: '900', color: '#dc2626', marginTop: '0.5rem' }}>${totalGastos.toFixed(2)}</p>
-            <p style={{ fontSize: '0.75rem', color: '#f87171', marginTop: '0.25rem', fontWeight: '500', margin: 0 }}>{gastos.length} registrados</p>
+          <div className="stats-card stats-card--red">
+            <p className="stats-label">Total Gastos</p>
+            <p className="stats-value" style={{ color: '#ef4444' }}>${totalGastos.toFixed(2)}</p>
+            <p className="stats-subtext">{gastos.length} registrados</p>
           </div>
         </div>
 
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div style={{ padding: '1rem', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+        <div className="table-container">
+          <div className="table-header">
             <h3 style={{ fontWeight: 'bold', color: '#475569', margin: 0 }}>Movimientos Recientes</h3>
           </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', textAlign: 'left', fontSize: '0.875rem' }}>
-              <thead style={{ background: 'white', color: '#94a3b8', borderBottom: '1px solid #e2e8f0' }}>
+          <div className="table-scroll-area">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <th style={{ padding: '1rem', fontWeight: '500' }}>Hora</th>
-                  <th style={{ padding: '1rem', fontWeight: '500' }}>Descripción / Cliente</th>
-                  <th style={{ padding: '1rem', fontWeight: '500' }}>Método</th>
-                  <th style={{ padding: '1rem', fontWeight: '500' }}>Referencia</th>
-                  <th style={{ padding: '1rem', textAlign: 'right', fontWeight: '500' }}>Monto</th>
-                  <th style={{ padding: '1rem', textAlign: 'center', fontWeight: '500' }}>Acciones</th>
+                  <th>Hora</th>
+                  <th>Descripción / Cliente</th>
+                  <th>Método</th>
+                  <th>Referencia</th>
+                  <th style={{ textAlign: 'right' }}>Monto</th>
+                  <th style={{ textAlign: 'center' }}>Acciones</th>
                 </tr>
               </thead>
-              <tbody style={{ borderTop: '1px solid #e2e8f0' }}>
+              <tbody>
                 {ventas.slice().reverse().map(v => (
-                  <tr key={v.id} className={v.pendingDelete ? 'pending-delete-row' : ''} style={{ borderBottom: '1px solid #f1f5f9', background: '#f8fafc', opacity: v.pendingDelete ? 0.6 : 1 }}>
-                    <td style={{ padding: '1rem', color: '#94a3b8' }}>{new Date(v.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                    <td style={{ padding: '1rem', fontWeight: '500', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span>{v.cliente}</span>
-                      {v.pendingDelete && <span style={{ fontSize: '0.75rem', background: '#fff7ed', color: '#b45309', padding: '0.125rem 0.5rem', borderRadius: '0.375rem', fontWeight: '700' }}>Eliminando...</span>}
+                  <tr key={v.id} className={v.pendingDelete ? 'pending-delete-row' : ''} style={{ opacity: v.pendingDelete ? 0.6 : 1 }}>
+                    <td style={{ color: '#94a3b8' }}>{new Date(v.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                    <td>
+                      <div style={{ fontWeight: '500', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span>{v.cliente}</span>
+                        {v.pendingDelete && <span className="status-badge status-badge--pending">Eliminando...</span>}
+                      </div>
                     </td>
-                    <td style={{ padding: '1rem' }}>
-                      <span style={{
-                        padding: '0.25rem 0.5rem',
-                        borderRadius: '0.25rem',
-                        fontSize: '0.75rem',
-                        fontWeight: '500',
-                        border: '1px solid #dbeafe',
-                        background: '#eff6ff',
-                        color: '#0284c7'
-                      }}>
+                    <td>
+                      <span className="status-badge status-badge--info">
                         {v.metodo}
                       </span>
                     </td>
-                    <td style={{ padding: '1rem', fontFamily: 'monospace', fontSize: '0.75rem', color: '#94a3b8' }}>{v.referencia || '-'}</td>
-                    <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 'bold', color: '#0f172a' }}>${v.total.toFixed(2)}</td>
-                    <td style={{ padding: '1rem', textAlign: 'center' }}>
+                    <td style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: '#94a3b8' }}>{v.referencia || '-'}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#0f172a' }}>${v.total.toFixed(2)}</td>
+                    <td style={{ textAlign: 'center' }}>
                       {v.pendingDelete ? (
                         <span style={{ color: '#f97316', fontWeight: '700' }}>Eliminando...</span>
                       ) : (
@@ -1217,7 +1189,7 @@ const WaterRefillSystem = () => {
                   </tr>
                 ))}
                 {ventas.length === 0 && (
-                  <tr><td colSpan="5" style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>Sin movimientos registrados hoy</td></tr>
+                  <tr><td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>Sin movimientos registrados hoy</td></tr>
                 )}
               </tbody>
             </table>
@@ -1228,46 +1200,34 @@ const WaterRefillSystem = () => {
   };
 
   const renderAdministracion = () => (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ borderRadius: '0.5rem', background: 'white', borderBottom: '1px solid #e2e8f0', padding: '0.5rem 1rem' }}>
-        <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#0f172a', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+    <div className="admin-layout">
+      <div className="admin-header">
+        <h2 className="admin-title">
           <Briefcase size={20} className="text-blue-600" /> Administración
         </h2>
-        <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto' }}>
+        <div className="admin-tabs">
           {[
             { id: 'reportes', label: 'Cierre', icon: FileText },
             { id: 'deudas', label: 'Deudas', icon: Users },
-            { id: 'gastos', label: 'Gastos', icon: Wallet } // Changed icon to Wallet to match import
+            { id: 'gastos', label: 'Gastos', icon: Wallet }
           ].map(tab => (
             <button
               key={tab.id}
               onClick={() => setAdminTab(tab.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                padding: '0.5rem 1rem',
-                borderRadius: '0.5rem',
-                fontSize: '0.875rem',
-                fontWeight: '600',
-                background: adminTab === tab.id ? '#eff6ff' : 'transparent',
-                color: adminTab === tab.id ? '#0284c7' : '#64748b',
-                border: adminTab === tab.id ? '1px solid #bfdbfe' : '1px solid transparent',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                whiteSpace: 'nowrap'
-              }}
+              className={`admin-tab-btn ${adminTab === tab.id ? 'active' : ''}`}
             >
               <tab.icon size={16} />
               {tab.label}
               {tab.id === 'deudas' && deudas.length > 0 && (
-                <span style={{ background: adminTab === tab.id ? '#0284c7' : '#94a3b8', color: 'white', borderRadius: 'full', padding: '0 0.4rem', fontSize: '0.70rem' }}>{deudas.length}</span>
+                <span className="status-badge status-badge--info" style={{ padding: '0 0.4rem', fontSize: '0.70rem', marginLeft: 'auto' }}>
+                  {deudas.length}
+                </span>
               )}
             </button>
           ))}
         </div>
       </div>
-      <div style={{ flex: 1, overflow: 'hidden' }}>
+      <div className="admin-content">
         {adminTab === 'reportes' && renderReportes()}
         {adminTab === 'deudas' && renderDeudas()}
         {adminTab === 'gastos' && renderGastos()}
@@ -1278,72 +1238,88 @@ const WaterRefillSystem = () => {
   // cleanup timers on unmount
   const renderInventario = () => {
     const porcentaje = Math.min(100, Math.max(0, (stockLitros / MAX_TANQUE_LITROS) * 100));
+    const isCritical = stockLitros < 1000;
 
     return (
-      <div style={{ padding: '1.5rem', maxWidth: '800px', margin: '0 auto' }}>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#0f172a', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Package size={28} /> Gestión de Inventario
-        </h2>
-
-        <div className="card-dashboard" style={{ padding: '2rem', textAlign: 'center', background: 'white', borderRadius: '1rem', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' }}>
-          <h3 style={{ fontSize: '1.125rem', color: '#64748b', marginBottom: '1.5rem' }}>Nivel Actual del Tanque</h3>
-
-          <div style={{ position: 'relative', width: '200px', height: '200px', margin: '0 auto 2rem auto' }}>
-            {/* Circular Indicator Placeholder - Using CSS for simplicity */}
-            <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
-              <path
-                d="M18 2.0845
-                      a 15.9155 15.9155 0 0 1 0 31.831
-                      a 15.9155 15.9155 0 0 1 0 -31.831"
-                fill="none"
-                stroke="#e2e8f0"
-                strokeWidth="4"
-              />
-              <path
-                d="M18 2.0845
-                      a 15.9155 15.9155 0 0 1 0 31.831
-                      a 15.9155 15.9155 0 0 1 0 -31.831"
-                fill="none"
-                stroke={stockLitros < 1000 ? '#ef4444' : '#3b82f6'}
-                strokeWidth="4"
-                strokeDasharray={`${porcentaje}, 100`}
-                style={{ transition: 'stroke-dasharray 0.5s ease' }}
-              />
-            </svg>
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ fontSize: '2.5rem', fontWeight: '900', color: '#0f172a' }}>{Math.round(porcentaje)}%</span>
-              <span style={{ fontSize: '1rem', color: '#64748b' }}>{stockLitros} L</span>
-            </div>
+      <div className="module-container">
+        <div className="module-header">
+          <div>
+            <h2 className="module-title">
+              <Package size={24} className="text-blue-600" /> Gestión de Inventario
+            </h2>
+            <p className="module-subtitle">Monitoreo y recarga del tanque de agua</p>
           </div>
+        </div>
 
-          <div style={{ marginBottom: '2rem' }}>
-            <p style={{ color: '#64748b', marginBottom: '0.5rem' }}>Capacidad Total: <strong>{MAX_TANQUE_LITROS} Litros</strong></p>
-            {stockLitros < 1000 && (
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', background: '#fee2e2', color: '#dc2626', borderRadius: 'full', fontWeight: 'bold', fontSize: '0.875rem' }}>
-                ⚠️ Nivel Crítico de Agua
+        <div className="inventory-grid">
+          {/* Main Tank Visual */}
+          <div className="tank-card">
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem', color: '#0f172a' }}>Nivel Actual</h3>
+
+            <div className={`tank-visual-container ${isCritical ? 'critical' : ''}`}>
+              <div
+                className={`tank-liquid ${isCritical ? 'critical' : ''}`}
+                style={{ height: `${porcentaje}%` }}
+              />
+            </div>
+
+            <div className={`tank-measurement ${isCritical ? 'critical' : ''}`}>
+              {Math.round(porcentaje)}%
+            </div>
+            <div className="tank-capacity-label">
+              {stockLitros.toLocaleString()} / {MAX_TANQUE_LITROS.toLocaleString()} Litros
+            </div>
+
+            {isCritical && (
+              <div style={{
+                marginTop: '1.5rem',
+                padding: '0.75rem 1rem',
+                background: '#fee2e2',
+                color: '#b91c1c',
+                borderRadius: '0.5rem',
+                fontWeight: '600',
+                fontSize: '0.9rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <AlertTriangle size={20} /> Nivel Crítico: Recargar pronto
               </div>
             )}
           </div>
 
-          <button
-            onClick={recargarTanque}
-            style={{
-              background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-              color: 'white',
-              border: 'none',
-              padding: '0.75rem 2rem',
-              borderRadius: '0.5rem',
-              fontWeight: 'bold',
-              fontSize: '1rem',
-              cursor: 'pointer',
-              boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.5)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}
-          >
-            <Droplets size={20} /> Recargar Tanque
-          </button>
+          {/* Actions & Stats */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <div className="stats-card">
+              <div className="stats-label">Capacidad Total</div>
+              <div className="stats-value">{MAX_TANQUE_LITROS.toLocaleString()} L</div>
+              <div className="stats-subtext">Volumen máximo del tanque</div>
+            </div>
+
+            <div className="stats-card">
+              <div className="stats-label">Estado del Sistema</div>
+              <div className="stats-value" style={{ color: isCritical ? '#dc2626' : '#16a34a' }}>
+                {isCritical ? 'Requiere Atención' : 'Operativo'}
+              </div>
+              <div className="stats-subtext">
+                {isCritical ? 'El nivel está por debajo del mínimo seguro' : 'Nivel de agua óptimo para ventas'}
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: '2rem', textAlign: 'center' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '1rem' }}>Acciones</h3>
+              <button
+                onClick={recargarTanque}
+                className="btn-primary-large"
+                style={{ width: '100%', justifyContent: 'center' }}
+              >
+                <Droplets size={24} /> Recargar Tanque (+{REFILL_AMOUNT}L)
+              </button>
+              <p style={{ marginTop: '1rem', fontSize: '0.85rem', color: '#64748b' }}>
+                Se requiere contraseña de administrador para realizar esta acción.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -1450,6 +1426,7 @@ const WaterRefillSystem = () => {
       <main className="main-content">
         {vistaActual === 'productos' && (
           <div>
+            {/* Dashboard Mini-Header */}
             <div className="stock-indicator-dashboard" style={{ padding: '0 1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                 <span style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#64748b' }}>Nivel del Tanque</span>

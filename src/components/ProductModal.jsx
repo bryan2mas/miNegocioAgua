@@ -52,7 +52,7 @@ export default function ProductModal({ open, onClose, onConfirm, defaultName = '
               placeholder="Ej. 1.50"
             />
           </div>
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <div className="modal-actions">
             <button
               className="modal-confirm-btn"
               onClick={() => onConfirm(name, price)}

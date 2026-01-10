@@ -29,7 +29,8 @@ export default function PasswordModal({ open, onClose, onConfirm, title = 'Confi
           <h3>{title}</h3>
           <button className="modal-close-btn" onClick={onClose} aria-label="Cerrar"><X size={20} /></button>
         </div>
-        <div className="modal-body">\n          {info && <p style={{ color: '#475569', marginBottom: '1rem', fontSize: '0.9rem' }}>{info}</p>}
+        <div className="modal-body">
+          {info && <p className="modal-info-text">{info}</p>}
           <div className="modal-section">
             <label htmlFor="pwd-input">{placeholder}</label>
             <input
@@ -42,7 +43,7 @@ export default function PasswordModal({ open, onClose, onConfirm, title = 'Confi
               placeholder={placeholder}
             />
           </div>
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <div className="modal-actions">
             <button className="modal-confirm-btn" onClick={() => onConfirm(value)}>Confirmar</button>
             <button className="modal-button" onClick={onClose}>Cancelar</button>
           </div>
