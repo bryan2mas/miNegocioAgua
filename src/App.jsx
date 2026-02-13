@@ -8,11 +8,11 @@ import PasswordModal from './components/PasswordModal';
 import { notifyToast } from './components/Toast';
 import { Toaster, toast } from 'sonner';
 import RefillToast from './components/RefillToast';
-import { logAudit, saveVenta, saveProducto, deleteVenta, deleteProducto, fetchProductos, fetchVentas, fetchStock, saveStock, saveGasto, fetchGastos, deleteGasto } from './firebase';
+import { logAudit, saveVenta, saveProducto, deleteVenta, deleteProducto, fetchProductos, fetchVentas, fetchStock, saveStock, saveGasto, fetchGastos, deleteGasto, fetchAbonos, saveAbono, fetchConfig, saveConfig } from './firebase';
 import {
   Plus, Trash2, TrendingUp, TrendingDown, Users, Calendar, Search, LogOut, Package, Droplets,
   ChevronRight, Menu, X, Check, ShoppingCart, User, Download, FileText, Wallet, Settings,
-  Briefcase, CheckCircle, Smartphone, Banknote, CreditCard, Minus, Store, Truck, AlertTriangle
+  Briefcase, CheckCircle, Smartphone, Banknote, CreditCard, Minus, Store, Truck, AlertTriangle, Ticket
 } from 'lucide-react';
 
 // --- Datos Iniciales y Configuración ---
@@ -38,19 +38,21 @@ const METODOS_PAGO_DEUDA = {
   PAGO_MOVIL: 'Pago Móvil'
 };
 
-const MAX_TANQUE_LITROS = 6000;
-const REFILL_AMOUNT = 6000;
+const MAX_TANQUE_LITROS = 7000;
+const REFILL_AMOUNT = 7000;
 
 const WaterRefillSystem = () => {
   // --- Estados de la Aplicación ---
   const [vistaActual, setVistaActual] = useState('productos');
   const [carrito, setCarrito] = useState([]);
   const [productos, setProductos] = useState(PRODUCTOS_INICIALES);
-  const [stockLitros, setStockLitros] = useState(6000);
+  const [stockLitros, setStockLitros] = useState(7000);
   const [ventas, setVentas] = useState([]);
   const [gastos, setGastos] = useState([]);
   const [deudas, setDeudas] = useState([]);
+  const [abonos, setAbonos] = useState([]);
   const [montoDelivery, setMontoDelivery] = useState(0);
+  const [ultimoCierre, setUltimoCierre] = useState(null);
 
   // Estados para modales de Venta
   const [modalPagoAbierto, setModalPagoAbierto] = useState(false);
@@ -64,6 +66,14 @@ const WaterRefillSystem = () => {
   const [deudaSeleccionada, setDeudaSeleccionada] = useState(null);
   const [metodoSaldarSeleccionado, setMetodoSaldarSeleccionado] = useState(METODOS_PAGO_DEUDA.EFECTIVO);
   const [referenciaSaldar, setReferenciaSaldar] = useState('');
+
+  // Estados para Abonos
+  const [abonoModalOpen, setAbonoModalOpen] = useState(false);
+  const [clienteAbono, setClienteAbono] = useState('');
+  // Abono Cart State
+  const [abonoCarrito, setAbonoCarrito] = useState([]);
+  const [productoAbonoSelec, setProductoAbonoSelec] = useState(''); // ID
+  const [cantidadAbonoInput, setCantidadAbonoInput] = useState('');
 
   // Estados para Mobile
   const [sidebarAbierto, setSidebarAbierto] = useState(false);
@@ -117,6 +127,18 @@ const WaterRefillSystem = () => {
     }).catch(err => {
       console.warn('fetchGastos failed', err);
     });
+
+    fetchAbonos().then(items => {
+      if (!mounted) return;
+      if (items && items.length) setAbonos(items);
+    }).catch(err => {
+      console.warn('fetchAbonos failed', err);
+    });
+
+    fetchConfig().then(cfg => {
+      if (!mounted) return;
+      if (cfg && cfg.ultimoCierre) setUltimoCierre(new Date(cfg.ultimoCierre));
+    }).catch(err => console.warn('fetchConfig failed', err));
 
 
 
@@ -445,14 +467,14 @@ const WaterRefillSystem = () => {
 
   // --- Lógica de Reportes y Exportación ---
 
-  const descargarCSV = () => {
-    if (ventas.length === 0) {
-      alert("No hay ventas para exportar.");
+  const generarCSV = (datos, nombreArchivo) => {
+    if (datos.length === 0) {
+      alert("No hay ventas para exportar en este periodo.");
       return;
     }
 
     const headers = ["ID", "Fecha", "Cliente", "Metodo", "Referencia", "Total", "Items"];
-    const rows = ventas.map(v => [
+    const rows = datos.map(v => [
       v.id,
       new Date(v.fecha).toLocaleString(),
       v.cliente,
@@ -469,10 +491,60 @@ const WaterRefillSystem = () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `cierre_ventas_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute("download", nombreArchivo);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const descargarCSV = () => {
+    generarCSV(ventas, `ventas_historico_${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
+  const descargarCierreDiario = () => {
+    // Filter sales since last close (or today if null)
+    const ventasFiltradas = ventas.filter(v => {
+      const fechaVenta = new Date(v.fecha);
+      if (ultimoCierre) return fechaVenta > ultimoCierre;
+      return true; // If no previous close, show everything (or could limit to today)
+    });
+
+    if (ventasFiltradas.length === 0) {
+      notifyToast("No hay ventas nuevas para cerrar.", "info");
+      return;
+    }
+
+    if (!confirm("¿Generar Cierre Diario? Esto reiniciará los contadores.")) return;
+
+    generarCSV(ventasFiltradas, `cierre_diario_${new Date().toISOString().slice(0, 10)}.csv`);
+
+    // Update Last Close Date
+    const ahora = new Date();
+    setUltimoCierre(ahora);
+    saveConfig({ ultimoCierre: ahora.toISOString() })
+      .then(() => notifyToast("Cierre realizado. Contadores reiniciados.", "success"))
+      .catch(err => {
+        console.error("Error saving close config", err);
+        notifyToast("Error al guardar cierre", "error");
+      });
+  };
+
+  const descargarReporteSemanal = () => {
+    const curr = new Date(); // get current date
+    const first = curr.getDate() - curr.getDay() + 1; // First day is the day of the month - the day of the week + 1 (Monday)
+    const last = first + 6; // last day is the first day + 6 (Sunday)
+
+    const firstday = new Date(curr.setDate(first));
+    firstday.setHours(0, 0, 0, 0);
+    const lastday = new Date(curr.setDate(last));
+    lastday.setHours(23, 59, 59, 999);
+
+    const ventasSemana = ventas.filter(v => {
+      const d = new Date(v.fecha);
+      return d >= firstday && d <= lastday;
+    });
+
+    generarCSV(ventasSemana, `reporte_semanal_${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
   // --- Eliminar ventas (corrección por equivocación) ---
@@ -942,9 +1014,8 @@ const WaterRefillSystem = () => {
       notifyToast('Gasto eliminado', 'info');
     };
 
-    const totalGastosHoy = gastos
-      .filter(g => new Date(g.fecha).toDateString() === new Date().toDateString())
-      .reduce((sum, g) => sum + g.monto, 0);
+    const gastosFiltrados = gastos.filter(g => !ultimoCierre || new Date(g.fecha) > ultimoCierre);
+    const totalGastosHoy = gastosFiltrados.reduce((sum, g) => sum + g.monto, 0);
 
     return (
       <div className="module-container">
@@ -1028,7 +1099,7 @@ const WaterRefillSystem = () => {
             <div className="stats-card stats-card--red">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <p className="stats-label" style={{ color: '#ef4444' }}>Total Gastos (Hoy)</p>
+                  <p className="stats-label" style={{ color: '#ef4444' }}>Total Gastos (Turno Actual)</p>
                   <p className="stats-value" style={{ color: '#b91c1c' }}>${totalGastosHoy.toFixed(2)}</p>
                 </div>
                 <TrendingDown size={32} className="text-red-300" />
@@ -1041,9 +1112,9 @@ const WaterRefillSystem = () => {
                 <h3 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0 }}>Historial Reciente</h3>
               </div>
               <div style={{ overflowY: 'auto', flex: 1 }}>
-                {gastos.length === 0 ? (
+                {gastosFiltrados.length === 0 ? (
                   <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>
-                    No hay gastos registrados
+                    No hay gastos registrados en este turno
                   </div>
                 ) : (
                   <table className="data-table">
@@ -1057,7 +1128,7 @@ const WaterRefillSystem = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {gastos.map(g => (
+                      {gastosFiltrados.map(g => (
                         <tr key={g.id}>
                           <td style={{ color: 'var(--color-slate-500)' }}>
                             {new Date(g.fecha).toLocaleDateString()}
@@ -1096,11 +1167,24 @@ const WaterRefillSystem = () => {
     );
   };
   const renderReportes = () => {
-    const totalVentas = ventas.reduce((sum, v) => sum + v.total, 0);
-    const totalEfectivo = ventas.filter(v => v.metodo.includes('Efectivo')).reduce((sum, v) => sum + v.total, 0);
-    const totalPagoMovil = ventas.filter(v => v.metodo.includes('Pago Móvil')).reduce((sum, v) => sum + v.total, 0);
-    const totalDeudas = deudas.reduce((sum, d) => sum + d.total, 0);
-    const totalGastos = gastos.reduce((sum, g) => sum + g.monto, 0);
+    // Filter data since last close
+    const ventasFiltradas = ventas.filter(v => !ultimoCierre || new Date(v.fecha) > ultimoCierre);
+    const gastosFiltrados = gastos.filter(g => !ultimoCierre || new Date(g.fecha) > ultimoCierre);
+
+    // Deudas (Credit Sales) in current shift
+    // Note: This only counts NEW debts from sales in this shift. 
+    // To show ALL outstanding debts, use 'deudas' directly. 
+    // But since this is a "Cierre Report", users usually want to know what happened TODAY.
+    // However, the "Deudas" card in existing code (line 1146 orig) was summing ALL deudas.
+    // Let's keep "Métodos de Pago > Crédito" strictly for *Sales in this shift*.
+
+    const totalVentas = ventasFiltradas.reduce((sum, v) => sum + v.total, 0);
+    const totalEfectivo = ventasFiltradas.filter(v => v.metodo.includes('Efectivo')).reduce((sum, v) => sum + v.total, 0);
+    const totalPagoMovil = ventasFiltradas.filter(v => v.metodo.includes('Pago Móvil')).reduce((sum, v) => sum + v.total, 0);
+    const totalCreditoShift = ventasFiltradas.filter(v => v.metodo.includes('Crédito')).reduce((sum, v) => sum + v.total, 0);
+
+    // Total Gastos in shift
+    const totalGastos = gastosFiltrados.reduce((sum, g) => sum + g.monto, 0);
     const gananciaNeta = totalVentas - totalGastos;
 
     return (
@@ -1110,12 +1194,29 @@ const WaterRefillSystem = () => {
             <h2 className="module-title">Reporte de Cierre</h2>
             <p className="module-subtitle">Resumen general del negocio</p>
           </div>
-          <button
-            onClick={descargarCSV}
-            className="btn-action btn-primary"
-          >
-            <Download size={18} /> Exportar Excel
-          </button>
+          <div className="module-actions">
+            <button
+              onClick={descargarCierreDiario}
+              className="btn-action btn-primary"
+              title="Descargar ventas de hoy"
+            >
+              <Calendar size={18} /> Cierre Diario
+            </button>
+            <button
+              onClick={descargarReporteSemanal}
+              className="btn-action btn-secondary"
+              title="Descargar ventas de esta semana (Lun-Dom)"
+            >
+              <Calendar size={18} /> Reporte Semanal
+            </button>
+            <button
+              onClick={descargarCSV}
+              className="btn-action btn-secondary"
+              title="Descargar todo el historial"
+            >
+              <Download size={18} /> Histórico
+            </button>
+          </div>
         </div>
 
         <div className="stats-grid">
@@ -1133,14 +1234,14 @@ const WaterRefillSystem = () => {
             <p className="stats-label">Métodos de Pago</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.5rem' }}>
               <span className="text-sm">💵 Efec: <strong>${totalEfectivo.toFixed(2)}</strong></span>
-              <span className="text-sm">📱 Pago M: <strong>${totalPagoMovil.toFixed(2)}</strong></span>
-              <span className="text-sm" style={{ color: '#991b1b' }}>📝 Crédito: <strong>${totalDeudas.toFixed(2)}</strong></span>
+              <span className="text-sm">📱 PM: <strong>${totalPagoMovil.toFixed(2)}</strong></span>
+              <span className="text-sm" style={{ color: '#991b1b' }}>📝 Créd: <strong>${totalCreditoShift.toFixed(2)}</strong></span>
             </div>
           </div>
           <div className="stats-card stats-card--red">
             <p className="stats-label">Total Gastos</p>
             <p className="stats-value" style={{ color: '#ef4444' }}>${totalGastos.toFixed(2)}</p>
-            <p className="stats-subtext">{gastos.length} registrados</p>
+            <p className="stats-subtext">{gastosFiltrados.length} registrados</p>
           </div>
         </div>
 
@@ -1161,7 +1262,7 @@ const WaterRefillSystem = () => {
                 </tr>
               </thead>
               <tbody>
-                {ventas.slice().reverse().map(v => (
+                {ventasFiltradas.slice().reverse().map(v => (
                   <tr key={v.id} className={v.pendingDelete ? 'pending-delete-row' : ''} style={{ opacity: v.pendingDelete ? 0.6 : 1 }}>
                     <td style={{ color: '#94a3b8' }}>{new Date(v.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                     <td>
@@ -1188,7 +1289,7 @@ const WaterRefillSystem = () => {
                     </td>
                   </tr>
                 ))}
-                {ventas.length === 0 && (
+                {ventasFiltradas.length === 0 && (
                   <tr><td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>Sin movimientos registrados hoy</td></tr>
                 )}
               </tbody>
@@ -1235,7 +1336,346 @@ const WaterRefillSystem = () => {
     </div>
   );
 
-  // cleanup timers on unmount
+  // --- Lógica de Abonos (Multi-Producto) ---
+
+  const agregarItemAbono = () => {
+    if (!productoAbonoSelec || !cantidadAbonoInput || Number(cantidadAbonoInput) <= 0) return;
+
+    const prod = productos.find(p => p.id === Number(productoAbonoSelec));
+    if (!prod) return;
+
+    const nuevoItem = {
+      productId: prod.id,
+      nombre: prod.nombre,
+      precioUnitario: prod.precio, // Precio actual al momento del abono
+      cantidad: Number(cantidadAbonoInput)
+    };
+
+    // Check if exists
+    const existe = abonoCarrito.find(i => i.productId === nuevoItem.productId);
+    if (existe) {
+      setAbonoCarrito(abonoCarrito.map(i => i.productId === nuevoItem.productId ? { ...i, cantidad: i.cantidad + nuevoItem.cantidad } : i));
+    } else {
+      setAbonoCarrito([...abonoCarrito, nuevoItem]);
+    }
+
+    setProductoAbonoSelec('');
+    setCantidadAbonoInput('');
+  };
+
+  const removerItemAbono = (pid) => {
+    setAbonoCarrito(abonoCarrito.filter(i => i.productId !== pid));
+  };
+
+  const handleGuardarAbono = () => {
+    if (!clienteAbono.trim() || abonoCarrito.length === 0) {
+      notifyToast('Ingrese cliente y al menos un producto', 'error');
+      return;
+    }
+
+    const totalPagar = abonoCarrito.reduce((sum, item) => sum + (item.cantidad * item.precioUnitario), 0);
+
+    const itemsAbono = abonoCarrito.map(item => ({
+      productId: item.productId,
+      nombre: item.nombre,
+      precioUnitario: item.precioUnitario,
+      cantidadOriginal: item.cantidad,
+      cantidadRestante: item.cantidad
+    }));
+
+    const nuevoAbono = {
+      id: Date.now(),
+      cliente: clienteAbono.trim(),
+      montoPagado: totalPagar,
+      fechaCreacion: new Date().toISOString(),
+      ultimaActualizacion: new Date().toISOString(),
+      items: itemsAbono,
+      historial: [
+        {
+          tipo: 'CARGA_INICIAL',
+          items: itemsAbono, // Snapshot of initial load
+          fecha: new Date().toISOString()
+        }
+      ]
+    };
+
+    // 1. Guardar Abono
+    saveAbono(nuevoAbono).then(() => {
+      setAbonos([nuevoAbono, ...abonos]);
+
+      // 2. Registrar Venta (Cash Inflow)
+      const saleItems = abonoCarrito.map(item => ({
+        id: `abono_${item.productId}_${Date.now()}`,
+        nombre: `Abono: ${item.nombre}`,
+        precio: item.precioUnitario,
+        cantidad: item.cantidad,
+        icono: 'ticket'
+      }));
+
+      const nuevaVenta = {
+        id: Date.now() + 1,
+        fecha: new Date().toISOString(),
+        items: saleItems,
+        total: totalPagar,
+        metodo: 'Efectivo',
+        cliente: clienteAbono.trim(),
+        referencia: 'Abono',
+        pendienteDelete: false
+      };
+
+      saveVenta(nuevaVenta).then(() => {
+        setVentas([nuevaVenta, ...ventas]);
+        notifyToast('Abono registrado exitosamente', 'success');
+      });
+
+      setAbonoModalOpen(false);
+      setClienteAbono('');
+      setAbonoCarrito([]);
+    }).catch(err => {
+      console.error('saveAbono error', err);
+      notifyToast('Error al guardar abono', 'error');
+    });
+  };
+
+  const handleRetirarAbono = (abono, itemIndex, cantidadRetiro) => {
+    const item = abono.items[itemIndex];
+    if (!item) return;
+
+    if (cantidadRetiro <= 0 || cantidadRetiro > item.cantidadRestante) {
+      notifyToast('Cantidad inválida', 'error');
+      return;
+    }
+
+    // Check Stock
+    const prodCatalogo = productos.find(p => p.id === item.productId);
+    const consumoLitros = prodCatalogo ? prodCatalogo.consumoLitros : (item.nombre.toLowerCase().includes('botellón') || item.nombre.toLowerCase().includes('botellon') ? 20 : 0);
+
+    const litrosARetirar = cantidadRetiro * (consumoLitros || 0);
+
+    if (stockLitros < litrosARetirar) {
+      notifyToast(`Stock insuficiente (${litrosARetirar}L requeridos)`, 'error');
+      return;
+    }
+
+    // Update specific item in abono
+    const updatedItems = [...abono.items];
+    updatedItems[itemIndex] = {
+      ...item,
+      cantidadRestante: item.cantidadRestante - cantidadRetiro
+    };
+
+    const abonoActualizado = {
+      ...abono,
+      ultimaActualizacion: new Date().toISOString(),
+      items: updatedItems,
+      historial: [
+        ...abono.historial,
+        {
+          tipo: 'RETIRO',
+          nombreProducto: item.nombre,
+          cantidad: cantidadRetiro,
+          fecha: new Date().toISOString()
+        }
+      ]
+    };
+
+    saveAbono(abonoActualizado).then(() => {
+      setAbonos(abonos.map(a => a.id === abono.id ? abonoActualizado : a));
+
+      // Update Stock
+      const nuevoStock = Math.max(0, stockLitros - litrosARetirar);
+      setStockLitros(nuevoStock);
+      saveStock({ liters: nuevoStock });
+
+      notifyToast(`Retiro de ${cantidadRetiro} ${item.nombre} registrado`, 'success');
+    }).catch(err => {
+      console.error('updateAbono error', err);
+      notifyToast('Error al procesar retiro', 'error');
+    });
+  };
+
+  const renderAbonos = () => {
+    // Filter active abonos
+    const abonosActivos = abonos.filter(a => {
+      if (a.items && Array.isArray(a.items)) {
+        return a.items.some(i => i.cantidadRestante > 0);
+      }
+      return a.cantidadRestante > 0;
+    });
+
+    return (
+      <div className="module-container">
+        <div className="module-header">
+          <div>
+            <h2 className="module-title">
+              <Ticket size={24} className="text-blue-600" /> Abonos y Prepago
+            </h2>
+            <p className="module-subtitle">Gestión de botellones pagados por adelantado</p>
+          </div>
+          <button
+            onClick={() => {
+              setAbonoCarrito([]);
+              setClienteAbono('');
+              setAbonoModalOpen(true);
+            }}
+            className="btn-primary"
+          >
+            <Plus size={18} /> Nuevo Abono
+          </button>
+        </div>
+
+        <div className="inventory-grid">
+          {abonosActivos.length === 0 ? (
+            <div style={{ gridColumn: 'span 2', textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
+              <div style={{ background: '#f1f5f9', padding: '1.5rem', borderRadius: '50%', marginBottom: '1.5rem', display: 'inline-flex' }}>
+                <Ticket size={40} style={{ opacity: 0.5 }} />
+              </div>
+              <p style={{ fontSize: '1.1rem', fontWeight: '500' }}>No hay abonos activos</p>
+            </div>
+          ) : (
+            abonosActivos.map(abono => (
+              <div key={abono.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
+                  <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#0f172a' }}>{abono.cliente}</h3>
+                  <span style={{ fontSize: '0.8rem', color: '#64748b' }}>{new Date(abono.fechaCreacion).toLocaleDateString()}</span>
+                </div>
+
+                {/* Render Items List */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  {abono.items && abono.items.map((item, idx) => (
+                    item.cantidadRestante > 0 && (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '0.5rem', borderRadius: '0.375rem' }}>
+                        <div>
+                          <div style={{ fontWeight: '600', fontSize: '0.9rem', color: '#334155' }}>{item.nombre}</div>
+                          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{item.cantidadRestante} disponibles</div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`¿Retirar 1 ${item.nombre}?`)) {
+                              handleRetirarAbono(abono, idx, 1);
+                            }
+                          }}
+                          className="btn-secondary"
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                        >
+                          Retirar 1
+                        </button>
+                      </div>
+                    )
+                  ))}
+
+                  {/* Fallback for old abonos */}
+                  {!abono.items && abono.cantidadRestante > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff7ed', padding: '0.5rem', borderRadius: '0.375rem' }}>
+                      <div>
+                        <div style={{ fontWeight: '600', fontSize: '0.9rem', color: '#c2410c' }}>Botellones (Legacy)</div>
+                        <div style={{ fontSize: '0.75rem', color: '#9a3412' }}>{abono.cantidadRestante} disponibles</div>
+                      </div>
+                      <button
+                        onClick={() => alert("Este es un abono antiguo. Por favor retirar manual o migrar.")}
+                        className="btn-secondary"
+                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                      >
+                        ?
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Modal Nuevo Abono (Multi-Item) */}
+        {abonoModalOpen && (
+          <div className="modal" onClick={() => setAbonoModalOpen(false)}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3><Ticket size={20} /> Nuevo Abono (Mixto)</h3>
+                <button className="modal-close-btn" onClick={() => setAbonoModalOpen(false)}><X size={20} /></button>
+              </div>
+              <div className="modal-body">
+                <div>
+                  <label className="login-label">Cliente</label>
+                  <input
+                    type="text"
+                    value={clienteAbono}
+                    onChange={e => setClienteAbono(e.target.value)}
+                    className="modal-input"
+                    placeholder="Nombre del cliente"
+                    autoFocus
+                  />
+                </div>
+
+                {/* Product Adder */}
+                <div style={{ background: '#f1f5f9', padding: '1rem', borderRadius: '0.5rem', marginTop: '1rem' }}>
+                  <label className="login-label" style={{ marginBottom: '0.5rem' }}>Agregar Producto</label>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <select
+                      className="modal-input"
+                      style={{ flex: 2 }}
+                      value={productoAbonoSelec}
+                      onChange={e => setProductoAbonoSelec(e.target.value)}
+                    >
+                      <option value="">Seleccionar...</option>
+                      {productos.map(p => (
+                        <option key={p.id} value={p.id}>{p.nombre} (${p.precio})</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      className="modal-input"
+                      style={{ flex: 1 }}
+                      placeholder="Cant."
+                      value={cantidadAbonoInput}
+                      onChange={e => setCantidadAbonoInput(e.target.value)}
+                    />
+                    <button
+                      className="btn-secondary"
+                      onClick={agregarItemAbono}
+                      disabled={!productoAbonoSelec || !cantidadAbonoInput}
+                    >
+                      <Plus size={18} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Abono Cart List */}
+                <div style={{ marginTop: '1rem', maxHeight: '150px', overflowY: 'auto' }}>
+                  {abonoCarrito.length === 0 ? (
+                    <p style={{ color: '#94a3b8', fontSize: '0.85rem', textAlign: 'center' }}>No hay items seleccionados</p>
+                  ) : (
+                    abonoCarrito.map(item => (
+                      <div key={item.productId} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>
+                        <span style={{ fontSize: '0.9rem' }}>{item.cantidad} x {item.nombre}</span>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 'bold' }}>${(item.cantidad * item.precioUnitario).toFixed(2)}</span>
+                          <button onClick={() => removerItemAbono(item.productId)} style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer' }}>
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '2px dashed #cbd5e1', textAlign: 'right' }}>
+                  <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#0f172a' }}>
+                    Total: ${abonoCarrito.reduce((sum, i) => sum + (i.cantidad * i.precioUnitario), 0).toFixed(2)}
+                  </span>
+                </div>
+
+                <div className="modal-actions" style={{ marginTop: '1.5rem' }}>
+                  <button onClick={() => setAbonoModalOpen(false)} className="toast-refill-btn-cancel" style={{ flex: 1 }}>Cancelar</button>
+                  <button onClick={handleGuardarAbono} className="btn-primary" style={{ flex: 1 }}>Confirmar Abono</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
   const renderInventario = () => {
     const porcentaje = Math.min(100, Math.max(0, (stockLitros / MAX_TANQUE_LITROS) * 100));
     const isCritical = stockLitros < 1000;
@@ -1410,6 +1850,17 @@ const WaterRefillSystem = () => {
               <Briefcase size={20} />
               <span>Administración</span>
             </button>
+
+            <button
+              onClick={() => {
+                setVistaActual('abonos');
+                setSidebarAbierto(false);
+              }}
+              className={`sidebar-button ${vistaActual === 'abonos' ? 'active' : ''}`}
+            >
+              <Ticket size={20} />
+              <span>Abonos</span>
+            </button>
           </div>
         </div>
 
@@ -1451,6 +1902,7 @@ const WaterRefillSystem = () => {
         {vistaActual === 'inventario' && renderInventario()}
         {vistaActual === 'carrito' && renderCarrito()}
         {vistaActual === 'administracion' && renderAdministracion()}
+        {vistaActual === 'abonos' && renderAbonos()}
       </main>
 
       {/* Bottom Navigation for Mobile */}
@@ -1480,6 +1932,13 @@ const WaterRefillSystem = () => {
               {cantidadItemsCarrito}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => setVistaActual('abonos')}
+          className={`bottom-nav-item ${vistaActual === 'abonos' ? 'active' : ''}`}
+        >
+          <Ticket size={24} />
+          <span>Abonos</span>
         </button>
         <button
           onClick={() => setVistaActual('administracion')}

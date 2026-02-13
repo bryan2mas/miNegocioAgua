@@ -175,3 +175,67 @@ export async function fetchGastos() {
     throw err;
   }
 }
+
+// Abonos (Prepayments) helpers
+export async function saveAbono(abono) {
+  try {
+    if (!abono || !abono.id) throw new Error('abono must have id');
+    const abonosRef = doc(db, 'abonos', String(abono.id));
+    await setDoc(abonosRef, { ...abono, persistedAt: serverTimestamp() });
+    return { id: abono.id };
+  } catch (err) {
+    console.error('saveAbono error', err);
+    throw err;
+  }
+}
+
+export async function fetchAbonos() {
+  try {
+    const q = collection(db, 'abonos');
+    const snap = await getDocs(q);
+    const items = snap.docs.map(d => ({ ...d.data(), id: isNaN(Number(d.id)) ? d.id : Number(d.id) }));
+    return items;
+  } catch (err) {
+    console.error('fetchAbonos error', err);
+    throw err;
+  }
+}
+
+// Config / System State helpers (for Close Date etc)
+export async function fetchConfig() {
+  try {
+    const ref = doc(db, 'config', 'main');
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return {};
+    return snap.data();
+  } catch (err) {
+    console.error('fetchConfig error', err);
+    return {};
+  }
+}
+
+export async function saveConfig(payload) {
+  try {
+    const ref = doc(db, 'config', 'main');
+    await setDoc(ref, { ...payload, updatedAt: serverTimestamp() }, { merge: true });
+    return payload;
+  } catch (err) {
+    console.error('saveConfig error', err);
+    throw err;
+  }
+}
+
+
+
+
+export async function deleteAbono(abonoId) {
+  try {
+    if (!abonoId) throw new Error('abonoId required');
+    const abonoRef = doc(db, 'abonos', String(abonoId));
+    await deleteDoc(abonoRef);
+    return { id: abonoId };
+  } catch (err) {
+    console.error('deleteAbono error', err);
+    throw err;
+  }
+}
